@@ -157,8 +157,11 @@ def log_results(spark, catalog: str, batch: int, results: list[tuple[str, str, s
     spark.sql(f"""CREATE TABLE IF NOT EXISTS {catalog}.ops.quality_gate
                   (checked_on TIMESTAMP, batch INT, check_name STRING,
                    status STRING, value STRING, detail STRING)""")
+    def _esc(val: str) -> str:
+        return str(val).replace("'", "''")
+
     values = ", ".join(
-        f"('{n.replace(\"'\", \"''\")}', '{s}', '{v.replace(\"'\", \"''\")}', '')"
+        f"('{_esc(n)}', '{_esc(s)}', '{_esc(v)}', '')"
         for n, s, v in results
     )
     spark.sql(f"""INSERT INTO {catalog}.ops.quality_gate

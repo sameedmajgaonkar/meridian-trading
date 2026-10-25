@@ -1,126 +1,161 @@
 # Meridian Trading — Project Meridian Package 02
 
-> Databricks Free Edition lakehouse for **Wholesale order-to-revenue** (trainee **NN=02**).
-> All phases generated (Phases 0–10 artifacts in repo). **Run + evidence the
-> steps in [docs/runbook.md](docs/runbook.md)** — it is the ordered build and
-> the learn-afterwards guide.
+> Governed Databricks Lakehouse for **Wholesale order-to-revenue** (`meridian_t02`).
 
-## Variables (single source of truth)
+This repository implements an end-to-end governed lakehouse on Databricks Free Edition using Lakeflow Pipelines, Unity Catalog governance (Governed Tags and ABAC policies), SCD Type 2 change data capture, a semantic metric view, and automated quality gates.
 
-| Variable | Value |
-|---|---|
-| Trainee number `NN` | `02` |
-| Catalog | `meridian_t02` |
-| Volume | `/Volumes/meridian_t02/landing/raw_files/` |
-| Groups | `t02_admins`, `t02_pii_readers` |
-| Workspace | `sameed-dbx` (`dbc-7b9af537-03b9.cloud.databricks.com` o=7474657326378857) |
-| Source (read-only) | `samples.tpch` (orders, lineitem, customer, nation, region, part, supplier) |
+---
 
-All references to catalog / volume / groups use `var.nn` in `databricks.yml` — no scattered literals.
+## 1. Quickstart & Execution
 
-## Branching strategy
+All CLI commands use your configured Databricks CLI profile (e.g. `--profile <profile>`).
 
-Git is not yet initialized (pending Bash availability). When initialized: `main` is protected; work on feature branches `phase-0`, `phase-1`, etc., PR → `main`.
+1. **Bootstrap Unity Catalog Objects**:
+   Run `sql/setup/create_project.sql` in the SQL Editor with `:catalog = 'meridian_t02'`. Creates catalog, schemas (`landing`, `bronze`, `silver`, `gold`, `gov`, `ops`), and volume `/Volumes/meridian_t02/landing/raw_files`.
+2. **Deploy the Asset Bundle**:
+   ```bash
+   databricks bundle deploy -t dev
+   ```
+3. **Run Pipeline Progression**:
+   Databricks Free Edition has **one serverless compute slot**. Ensure the SQL warehouse is stopped before triggering jobs:
+   ```bash
+   databricks api post /api/2.0/sql/warehouses/<warehouse-id>/stop --json '{}'
+   ```
+   Run the job (runs with `simulate_batch=next` by default, advancing one batch per run):
+   ```bash
+   databricks bundle run meridian_t02_job
+   ```
+   Execute 3 times to land and process Batches 1, 2, and 3.
+4. **Governance Setup**:
+   Governance SQL policies (`sql/governance/apply_policies.sql`, `sql/governance/functions.sql`) are re-applied after a full pipeline refresh.
 
-## Phase 0 — what it is
+---
 
-- **Why:** settle date window, grain, hash meaning, KPI definitions, and capability gaps on observed data before writing any pipeline.
-- **Mental model:** Bronze = loading dock (nothing thrown away), Silver = warehouse (typed + quarantined + SCD2), Gold = showroom (star + metric view), governance = badge reader.
-- **Key docs:** `docs/superpowers/specs/2026-10-25-meridian-trading-phase0-design.md` (spec), `docs/architecture.md`, `docs/data_contract.md`, `docs/capability_matrix.md`, `docs/references.md`, `docs/decisions/`.
-- **Locked window:** orders `1995-01-01` → `1996-01-01` (ADR-001) — the only full year with all return flags A/R/N and statuses F/P/O.
-
-## Repo layout
+## 2. Architecture & Data Flow
 
 ```
-.
-├── databricks.yml            bundle: 2 resources only (ADR-006)
-├── resources/                pipeline.yml (1 pipeline), job.yml (3 tasks, paused schedule)
-├── src/landing/              simulate.py (parquet batches into the volume) + injection.py (deterministic plan)
-├── src/pipeline/             00_bronze → 10_silver → 20_customer_scd2 → 30_gold → 40_ops (SQL, ${param} config)
-├── src/quality_gate/         quality_gate.py (reconciliation + fail-on-bad)
-├── sql/setup|governance|metric_views|analysis/   manual SQL (setup 10/11, gov 30–34, mv 20, analysis 50/53/54)
-├── lakeflow_designer/        VDP exercise recipe (UI)
-├── docs/superpowers/specs/   phase-0 design spec
-├── docs/decisions/           ADR-001 … ADR-006
-├── docs/runbook.md           THE ordered build + evidence checklist
-└── evidence/                 git-ignored proof artifacts
+Raw Files (Parquet Batches 1, 2, 3 in UC Volume)
+  │
+  ▼ [Auto Loader Streaming Ingestion]
+Bronze Layer (`meridian_t02.bronze.*`)
+  ├── orders, lineitem, customer, part, supplier, nation, region
+  │
+  ▼ [Quality Rules, Quarantine Predicates, Deduplication]
+Silver Layer (`meridian_t02.silver.*`)
+  ├── orders (deduplicated by order_key; invalid rows dropped to ops)
+  ├── order_lines (deduplicated by order_key, line_number)
+  ├── customer_changes (streaming table of change records)
+  └── Ops Quarantines (`ops.quarantine_invalid`, `ops.duplicate_dispositions`, `ops.pending_order_lines`)
+  │
+  ▼ [AUTO CDC INTO & SCD Type 2]
+Silver Customer History (`meridian_t02.silver.customer_history`)
+  └── Tracked on market_segment with valid_from (__START_AT) and valid_to (__END_AT)
+  │
+  ▼ [Point-in-Time Join: o_orderdate BETWEEN valid_from AND coalesce(valid_to, ...)]
+Gold Star Schema (`meridian_t02.gold.*`)
+  ├── dim_customer_scd2 (with row filter on customer geography)
+  ├── dim_supplier, dim_part, dim_nation, dim_region
+  ├── fct_orders (header grain: 1 row per order_key)
+  └── fct_order_lines (line grain: 1 row per order_key + line_number)
+  │
+  ▼ [YAML 1.1 Specification, one_to_many joins]
+Semantic Metric View (`meridian_t02.gold.mv_trading`)
+  └── 7 Business Measures aggregating header and line grains independently
 ```
 
-## How to run Phase 0 probes
+---
 
-**Auth note (sandbox/CI shells):** the CLI reads tokens from the OS keyring.
-If it fails with `OS keyring unreachable: dial unix /run/user/1000/bus`,
-export `DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus` first
-(alternative: `DATABRICKS_AUTH_STORAGE=plaintext`). This is a local environment
-quirk, not a Databricks denial.
+## 3. Data Profile & Ingestion Plan
 
-In the `sameed-dbx` SQL warehouse (or via `databricks experimental aitools tools query --profile sameed-dbx`):
+- **Locked Business Window (ADR-001):** Calendar year 1995 (`1995-01-01` to `1996-01-01`), sampled with `o_orderkey % 500 = 0` (~700 orders, ~3,000 lines per batch).
+- **Synthetic Flaw Injections:**
+  - `orders`: Null customer keys and negative order prices.
+  - `lineitem`: Non-positive quantities, discount > 1, and exact duplicates.
+  - `delayed headers`: 5 orders from Batch 3 whose lineitems arrive early in Batch 2 (held in `ops.pending_order_lines` until headers arrive in Batch 3).
+- **Manifest Baseline:** Each batch generates an immutable manifest under `_manifest/batch=N` with pre-computed valid counts and expected financial sums.
 
-```sql
--- see sql/explore/inspect_samples.sql and sql/explore/profile_window.sql
-SHOW SCHEMAS IN samples;
-DESCRIBE TABLE samples.tpch.orders;
-SELECT min(o_orderdate), max(o_orderdate), count(*) FROM samples.tpch.orders;
-```
+---
 
-Capture screenshots to `evidence/p0_*.png`.
+## 4. Silver Quality Contract & Quarantine
 
-## Observed environment facts
+- **Deduplication:** Deterministic "newest file wins" rule (`row_number() OVER (PARTITION BY key ORDER BY _source_file DESC, _row_hash DESC)`). Discarded duplicates are logged in `ops.duplicate_dispositions`.
+- **Validation:** Enforced via `EXPECT ... ON VIOLATION DROP ROW` in `src/pipeline/silver.sql`.
+- **Quarantine:** All dropped invalid rows are captured in `ops.quarantine_invalid` using non-short-circuiting predicates (`if(NOT coalesce(<cond>, false), 'REASON', NULL)`).
+- **Early Lineitems:** Lines arriving before order headers are captured in `ops.pending_order_lines` with disposition reasons (`NO_HEADER`, `NO_CUSTOMER_VERSION`).
 
-Verified live on 2026-10-25 (see `docs/capability_matrix.md` and `evidence/runs/`):
+---
 
-| Fact | Value | How verified |
+## 5. Slowly Changing Dimensions (SCD Type 2)
+
+- Customer changes stream through `silver.customer_changes` and are processed into `silver.customer_history` using Databricks Lakeflow `AUTO CDC INTO ... STORED AS SCD TYPE 2` sequenced by `effective_date`.
+- `dim_customer_scd2` exposes `valid_from` (`__START_AT`), `valid_to` (`__END_AT`), and `is_current`.
+- Point-in-time joins bind orders strictly to the customer segment active when the order was placed:
+  ```sql
+  o.order_date >= h.valid_from AND (h.valid_to IS NULL OR o.order_date < h.valid_to)
+  ```
+
+---
+
+## 6. Business KPI Definitions (Metric View)
+
+Defined in `sql/metric_views/trading_metrics.sql` using YAML 1.1 `one_to_many` fact join over `fct_orders` and `fct_order_lines`:
+
+| Measure | Formula | Grain |
 |---|---|---|
-| CLI version | v1.20.0 | `databricks --version` |
-| CLI auth | works **only with** `DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus` exported | `current-user me` (sandbox keyring quirk; not a Databricks denial) |
-| Warehouse | `Serverless Starter Warehouse`, 2X-Small PRO, id `a20a2b2aaf17c10f` | `warehouses list` |
-| DBSQL version | 2026.39 (serverless) | `SELECT current_version()` |
-| Catalog `meridian_t02` | not yet created | `SHOW CATALOGS` → only samples/system/workspace |
-| Volume `landing.raw_files` | not yet created | pending Phase 1 probe |
-| Date window | **LOCKED: 1995-01-01 → 1996-01-01** (ADR-001) | profile run on 1,136,308 orders |
-| Source integrity | 0 orphans, 0 FK violations, hash collision check passed | 1995 profile run |
-| Governed tags & ABAC | VERIFIED LIVE via SQL DDL (`CREATE GOVERNED TAG`, `CREATE POLICY`) on Free Edition | Tested live 2026-10-26 (`coffin-dbx`); 3 tags created & applied, 2 ABAC policies active |
-| Metric view YAML 1.1 / one_to_many | requires DBR ≥ 18.1; SQL warehouses auto-update (2026.39) | Tested live 2026-10-26 (`gold.mv_trading` reconciled to the penny) |
-| System tables | `system.lakeflow/query/billing/access` all visible via SHOW | `SHOW SCHEMAS IN system` + `SHOW TABLES` ×4; SELECT rights pending Phase 7 |
-| Lakeflow Designer / Genie | pending UI probe | manual check |
+| `net_revenue` | `SUM(lines.net_revenue)` | Line |
+| `order_count` | `COUNT(source.order_key_hash)` | Header |
+| `average_order_value` | `try_divide(MEASURE(net_revenue), MEASURE(order_count))` | Ratio |
+| `delivery_days` | `try_divide(SUM(lines.transit_days), COUNT(lines.line_number))` | Line |
+| `late_delivery_rate` | `try_divide(SUM(lines.is_late), COUNT(lines.line_number))` | Line |
+| `return_rate` | `try_divide(SUM(lines.is_returned), COUNT(lines.line_number))` | Line |
+| `discount_given` | `SUM(lines.discount_amount)` | Line |
 
-## Quickstart
+---
 
-1. Create the two groups + run `sql/setup/create_project.sql` (runbook 1.1–1.2)
-2. `databricks bundle deploy --profile coffin-dbx --target dev`
-3. Run `meridian_t02_job` (lands 3 batches → pipeline update → quality gate)
-4. Run `sql/metric_views/trading_metrics.sql`, then governance SQL files
-5. Build the two dashboards, Genie space, Power BI (runbook 6–9)
+## 7. Security & Governance Model
 
-## Phases
+- **Governed Tags:** `sensitivity_level` (public, internal, confidential, restricted), `pii_type` (contact, financial, government_id, none), `medallion_layer` (landing, bronze, silver, gold).
+- **ABAC Column Masks:**
+  - `mask_contact_pii`: Masks `customer_phone` to `XXX-XXX-####` for users not in `t02_pii_readers`.
+  - `mask_financial_pii`: Masks `customer_account_balance` and `supplier_account_balance` to `NULL` for users not in `t02_pii_readers`.
+- **Row Filters:**
+  - `region_nation_filter`: Declared on Gold tables with `WITH ROW FILTER`. Users in `t02_admins` (verified via `is_account_group_member`) see all 5 regions; non-admin users only see regions and nations explicitly granted in `gov.entitlements`.
 
-| # | Title | Status |
-|---|---|---|
-| 0 | Explore, Profile & Design | DONE (probes + evidence; 2 UI screenshots pending) |
-| 1 | Landing simulator & Bronze | DONE (Batches 1-3 landed, streaming ingestion proven) |
-| 2 | Silver, quarantine, SCD2, Designer prep | DONE (SCD2 3-version history verified, 0 pending lines) |
-| 3 | Gold model, two-grain metric view | DONE (Star schema MVs + `mv_trading` reconciled live) |
-| 4 | Governance (tags, row filters, masks) | DONE (Governed tags, ABAC policies, row filters, masks active) |
-| 5 | Bundle, Job, quality gate | DONE (Job 747628238433531 green; 42/42 gate checks PASS) |
-| 6 | SQL queries & AI/BI dashboard | DONE (Published dashboard on metric view with typed parameters; evidence saved) |
-| 7 | Operations dashboard | DONE (2-page Operations Telemetry dashboard published on system tables) |
-| 8 | Genie Agent | DONE (Space created, instructions & benchmarks configured) |
-| 9 | Power BI | CONNECTION READY (DirectQuery string updated for workspace 2) |
-| 10 | Production run & evidence | BUNDLE VALIDATED (dev & prod targets OK; ready for prod run) |
+---
 
-Statuses mean: GENERATED = code/config/SQL exist in repo, tests pass, needs a
-real run; PENDING = requires interactive UI the agent cannot click.
+## 8. Architecture Decision Records (ADRs)
 
-## Security notes
+- **ADR-001 (Date Window):** Locked window `1995-01-01` to `1996-01-01` ensuring complete return and fulfillment status cycles.
+- **ADR-002 (Deterministic Hash):** Natural order key hashed as `lower(sha2(cast(o_orderkey as string), 256))` for facts linkage.
+- **ADR-003 (Unified Metric View):** All 7 KPIs exposed in one YAML 1.1 metric view using `one_to_many` join to avoid line fan-out double counting.
+- **ADR-004 (Standard CDC):** SCD2 implemented with standard Lakeflow streaming `AUTO CDC INTO` sequenced by `effective_date`.
+- **ADR-005 (Native SQL Governance):** Governed tags and catalog-scoped ABAC policies deployed via native SQL DDL.
+- **ADR-006 (Bundle Scopes):** Declarative Automation Bundle owns only compute resources (1 pipeline + 1 job); data catalogs and volumes persist independently.
 
-- Never write to `samples`. Never use `dbfs:/` or hard-coded personal paths.
-- Never commit tokens / secrets / `.env`. Bundle auth via env vars.
-- Schedules stay paused until Phase 10.
+---
 
-## References
+## 9. Deliverables & Acceptance Status
 
-See `docs/references.md` for official Databricks + Microsoft docs with checked dates.
+| Phase | Milestone | Status | Linked Evidence |
+|---|---|---|---|
+| **0** | Profile & Design | COMPLETE | `evidence/runs/` |
+| **1** | Landing Simulator & Bronze | COMPLETE | `evidence/p1_catalog.png`, `evidence/p1_groups.png` |
+| **2** | Silver, Quarantine & SCD2 | COMPLETE | Verified via gate & unit tests |
+| **3** | Gold Star & Metric View | COMPLETE | `sql/metric_views/trading_metrics.sql` |
+| **4** | Governance (Tags, Masks, Filters) | COMPLETE | `sql/governance/apply_policies.sql` |
+| **5** | DAB Bundle & Quality Gate | COMPLETE | `resources/job.yml`, `resources/pipeline.yml` |
+| **6** | Business KPI Dashboard | COMPLETE | `evidence/p6_dashboard.png` |
+| **7** | Operations Dashboard | PENDING UI EVIDENCE | `sql/analysis/ops_widgets.sql` |
+| **8** | Genie Agent Space | PENDING UI EVIDENCE | `docs/genie.md` |
+| **9** | Power BI DirectQuery | PENDING UI EVIDENCE | `docs/power_bi.md` |
+| **10** | Production Target Deployment | BUNDLE VALIDATED | `databricks.yml` |
 
-## License
+---
 
-Internal training project — not for distribution.
+## 10. Official Documentation References
+
+- [Databricks Lakeflow Pipelines](https://docs.databricks.com/aws/en/delta-live-tables/)
+- [Databricks Metric Views](https://docs.databricks.com/aws/en/uc-semantics/metric-views/)
+- [Unity Catalog Governed Tags](https://docs.databricks.com/aws/en/admin/governed-tags/)
+- [Row Filters and Column Masks](https://docs.databricks.com/aws/en/data-governance/unity-catalog/filters-and-masks/)
+- [Databricks Asset Bundles (DABs)](https://docs.databricks.com/aws/en/dev-tools/bundles/)
