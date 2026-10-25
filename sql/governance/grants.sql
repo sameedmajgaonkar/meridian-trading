@@ -1,7 +1,5 @@
--- Phase 4 — minimal consumer grants (run as admin). Admins keep owner rights;
--- pii_readers get unmasked PII via group membership in the mask/filter UDFs
--- but only SELECT on governed Gold (plus the quarantines for audit context).
--- shortcut: catalog is literal here (manual SQL-editor file).
+-- Consumer grants for reader roles.
+-- dev catalog
 
 GRANT USE CATALOG ON CATALOG meridian_t02 TO `t02_pii_readers`;
 GRANT USE SCHEMA ON SCHEMA meridian_t02.gold TO `t02_pii_readers`;
