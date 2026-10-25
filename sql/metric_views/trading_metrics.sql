@@ -1,7 +1,6 @@
 -- Two-grain metric view for wholesale order-to-revenue KPIs.
--- Measures aggregate at header or line grain independently without double-counting.
 
-USE CATALOG IDENTIFIER(:catalog);
+USE CATALOG meridian_t02;
 
 CREATE OR REPLACE VIEW gold.mv_trading WITH METRICS LANGUAGE YAML AS $$
 version: 1.1

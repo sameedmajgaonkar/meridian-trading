@@ -1,9 +1,5 @@
-"""Deterministic landing-batch plan and data flaw injections.
+"""Deterministic batch configuration and injection rules."""
 
-Pure Python module with no Spark dependency so it can be tested locally.
-"""
-
-FINAL_BATCH = 3
 SAMPLE_MOD = 500
 
 BATCHES = {
@@ -12,42 +8,31 @@ BATCHES = {
     3: {"start": "1995-09-01", "end": "1996-01-01", "snapshot_date": "1995-10-01"},
 }
 
-SEGMENTS = ["AUTOMOBILE", "BUILDING", "FURNITURE", "HOUSEHOLD", "MACHINERY"]
+NEXT_SEGMENT = {
+    "AUTOMOBILE": "BUILDING",
+    "BUILDING": "FURNITURE",
+    "FURNITURE": "HOUSEHOLD",
+    "HOUSEHOLD": "MACHINERY",
+    "MACHINERY": "AUTOMOBILE",
+}
 
-
-def segment_after(segment: str) -> str:
-    """Deterministic cyclic segment change (5 observed codes)."""
-    return SEGMENTS[(SEGMENTS.index(segment) + 1) % len(SEGMENTS)]
-
-
-def segment_changes(batch: int, customer_keys: list[int]) -> list[tuple[int, int]]:
-    """[(customer_key, change_number)] for customers that change segment in batch.
-    First 5 change in batch 2; next 5 change in batch 3; first 2 change again in batch 3.
-    """
-    sorted_keys = sorted(customer_keys)
-    if batch == 2:
-        return [(k, 1) for k in sorted_keys[:5]]
-    if batch == 3:
-        return [(k, 1) for k in sorted_keys[5:10]] + [(k, 2) for k in sorted_keys[:2]]
-    return []
-
-
-# Injections: (rule name, WHERE predicate on source columns, action).
-# Action None duplicates whole rows; (col, SQL expr) modifies column values.
-# Sampled keys are multiples of 500; predicates use residues divisible by 500 (~2% per rule).
+# 4 injection rules by row position
 ORDERS_RULES = [
-    ("orders_null_customer_key", "o_orderkey % 25000 = 0", ("o_custkey", "NULL")),
-    ("orders_negative_totalprice", "o_orderkey % 25000 = 500", ("o_totalprice", "-o_totalprice")),
+    ("orders_null_customer_key", "rn = 3", ("o_custkey", "NULL")),
 ]
 
 LINEITEM_RULES = [
-    ("lineitem_nonpositive_quantity", "l_orderkey % 25000 = 1000", ("l_quantity", "-l_quantity")),
-    ("lineitem_discount_over_one", "l_orderkey % 25000 = 1500", ("l_discount", "l_discount + 1")),
-    ("lineitem_exact_duplicate", "l_orderkey % 25000 = 2000", None),
+    ("lineitem_negative_quantity", "rn = 5", ("l_quantity", "-l_quantity")),
+    ("lineitem_discount_over_one", "rn = 11", ("l_discount", "l_discount + 1.0")),
+    ("lineitem_duplicate", "rn = 23", None),
 ]
 
-CUSTOMER_RULES = []
 
-# Five valid batch-3 orders whose lines land early in batch 2 (delayed headers).
-EARLY_ORDER_PREDICATE = "o_orderkey % 25000 = 2500"
-EARLY_ORDER_LIMIT = 5
+def get_segment_changes(batch: int, customer_keys: list[int]) -> list[int]:
+    """Returns customer keys that change segment in this batch."""
+    keys = sorted(customer_keys)
+    if batch == 2:
+        return keys[:5]
+    if batch == 3:
+        return keys[5:10] + keys[:2]
+    return []

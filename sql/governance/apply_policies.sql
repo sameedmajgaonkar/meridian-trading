@@ -1,7 +1,6 @@
 -- Applies governed tags, schema tags, column tags, and ABAC masking policies.
--- Secures sensitive customer and financial data across the lakehouse.
 
-USE CATALOG IDENTIFIER(:catalog);
+USE CATALOG meridian_t02;
 
 -- 1. Governed Tag Definitions
 CREATE GOVERNED TAG sensitivity_level
@@ -40,16 +39,16 @@ ALTER TABLE silver.customer_history
 
 -- 4. Centralized ABAC Column Mask Policies
 CREATE OR REPLACE POLICY mask_contact_pii
-ON CATALOG IDENTIFIER(:catalog)
-COLUMN MASK IDENTIFIER(:catalog || '.gov.mask_customer_phone')
+ON CATALOG meridian_t02
+COLUMN MASK meridian_t02.gov.mask_customer_phone
 TO `account users`
 FOR TABLES
 MATCH COLUMNS has_tag_value('pii_type', 'contact') AS pii_col
 ON COLUMN pii_col;
 
 CREATE OR REPLACE POLICY mask_financial_pii
-ON CATALOG IDENTIFIER(:catalog)
-COLUMN MASK IDENTIFIER(:catalog || '.gov.mask_account_balance')
+ON CATALOG meridian_t02
+COLUMN MASK meridian_t02.gov.mask_account_balance
 TO `account users`
 FOR TABLES
 MATCH COLUMNS has_tag_value('pii_type', 'financial') AS pii_col

@@ -2,7 +2,7 @@ resources:
   pipelines:
     meridian_t02_pipeline:
       name: meridian_t02_pipeline
-      catalog: ${var.catalog}
+      catalog: meridian_t02
       schema: bronze
       serverless: true
       libraries:
@@ -16,7 +16,3 @@ resources:
             path: ../src/pipeline/gold.sql
         - file:
             path: ../src/pipeline/ops.sql
-      configuration:
-        catalog: ${var.catalog}
-        order_start_date: ${var.order_start_date}
-        order_end_date: ${var.order_end_date}

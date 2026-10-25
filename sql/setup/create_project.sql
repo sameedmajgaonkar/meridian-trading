@@ -1,10 +1,8 @@
 -- Project Meridian setup: catalog, schemas, volume.
--- Run in SQL Editor. Takes :catalog parameter (default 'meridian_t02').
-DECLARE OR REPLACE VARIABLE project_catalog STRING DEFAULT :catalog;
 
-CREATE CATALOG IF NOT EXISTS IDENTIFIER(project_catalog)
+CREATE CATALOG IF NOT EXISTS meridian_t02
   COMMENT 'Project Meridian wholesale order-to-revenue';
-USE CATALOG IDENTIFIER(project_catalog);
+USE CATALOG meridian_t02;
 CREATE SCHEMA IF NOT EXISTS landing COMMENT 'Raw file drops';
 CREATE SCHEMA IF NOT EXISTS bronze COMMENT 'Append-only raw tables';
 CREATE SCHEMA IF NOT EXISTS silver COMMENT 'Validated, conformed tables';

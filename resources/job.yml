@@ -3,6 +3,9 @@ resources:
     meridian_t02_job:
       name: meridian_t02_job
       max_concurrent_runs: 1
+      parameters:
+        - name: batch
+          default: "next"
       environments:
         - environment_key: default
           spec:
@@ -10,19 +13,18 @@ resources:
       tasks:
         - task_key: gov_setup
           sql_task:
+            warehouse_id: ${var.warehouse}
             file:
               path: ../sql/governance/functions.sql
-            parameters:
-              catalog: ${var.catalog}
         - task_key: simulate_batch
           environment_key: default
           spark_python_task:
             python_file: ../src/landing/simulate.py
             parameters:
               - "--catalog"
-              - "${var.catalog}"
+              - "meridian_t02"
               - "--batch"
-              - "${var.simulate_batch}"
+              - "{{job.parameters.batch}}"
         - task_key: pipeline_update
           depends_on:
             - task_key: gov_setup
@@ -33,18 +35,16 @@ resources:
           depends_on:
             - task_key: pipeline_update
           sql_task:
+            warehouse_id: ${var.warehouse}
             file:
               path: ../sql/governance/apply_policies.sql
-            parameters:
-              catalog: ${var.catalog}
         - task_key: metric_view
           depends_on:
             - task_key: pipeline_update
           sql_task:
+            warehouse_id: ${var.warehouse}
             file:
               path: ../sql/metric_views/trading_metrics.sql
-            parameters:
-              catalog: ${var.catalog}
         - task_key: quality_gate
           depends_on:
             - task_key: gov_apply
@@ -54,9 +54,9 @@ resources:
             python_file: ../src/quality_gate/quality_gate.py
             parameters:
               - "--catalog"
-              - "${var.catalog}"
+              - "meridian_t02"
               - "--batch"
-              - "${var.simulate_batch}"
+              - "{{job.parameters.batch}}"
       email_notifications:
         on_failure:
           - ${var.alert_email}

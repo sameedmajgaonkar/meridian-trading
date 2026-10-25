@@ -1,11 +1,10 @@
--- Silver: typed, validated datasets for orders, line items, and customer changes.
--- Invalid records are dropped via EXPECT ... ON VIOLATION DROP ROW and logged in ops.quarantine_invalid.
+-- Silver: cleaned, typed, and validated datasets for orders, line items, and customers.
 
-CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.silver.orders (
+CREATE OR REFRESH MATERIALIZED VIEW meridian_t02.silver.orders (
   CONSTRAINT orders_key_required EXPECT (order_key IS NOT NULL) ON VIOLATION DROP ROW,
   CONSTRAINT orders_customer_key_required EXPECT (customer_key IS NOT NULL) ON VIOLATION DROP ROW,
   CONSTRAINT orders_date_in_window
-    EXPECT (order_date >= DATE '${order_start_date}' AND order_date < DATE '${order_end_date}')
+    EXPECT (order_date >= DATE '1995-01-01' AND order_date < DATE '1996-01-01')
     ON VIOLATION DROP ROW,
   CONSTRAINT orders_total_price_nonnegative EXPECT (order_total_price >= 0) ON VIOLATION DROP ROW,
   CONSTRAINT orders_status_valid EXPECT (order_status IN ('O', 'F', 'P')) ON VIOLATION DROP ROW
@@ -19,10 +18,10 @@ SELECT
   CAST(o_orderstatus AS STRING) AS order_status,
   _source_file,
   _batch_id
-FROM ${catalog}.bronze.orders
-QUALIFY row_number() OVER (PARTITION BY o_orderkey ORDER BY _source_file DESC, _row_hash DESC) = 1;
+FROM meridian_t02.bronze.orders
+QUALIFY row_number() OVER (PARTITION BY o_orderkey ORDER BY _source_file DESC) = 1;
 
-CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.silver.order_lines (
+CREATE OR REFRESH MATERIALIZED VIEW meridian_t02.silver.order_lines (
   CONSTRAINT lines_key_required EXPECT (order_key IS NOT NULL AND line_number IS NOT NULL)
     ON VIOLATION DROP ROW,
   CONSTRAINT lines_number_positive EXPECT (line_number > 0) ON VIOLATION DROP ROW,
@@ -54,17 +53,15 @@ SELECT
   CAST(l_returnflag AS STRING) AS return_flag,
   _source_file,
   _batch_id
-FROM ${catalog}.bronze.lineitem
-QUALIFY row_number() OVER (PARTITION BY l_orderkey, l_linenumber
-                           ORDER BY _source_file DESC, _row_hash DESC) = 1;
+FROM meridian_t02.bronze.lineitem
+QUALIFY row_number() OVER (PARTITION BY l_orderkey, l_linenumber ORDER BY _source_file DESC) = 1;
 
-CREATE OR REFRESH STREAMING TABLE ${catalog}.silver.customer_changes (
-  CONSTRAINT customer_key_required EXPECT (customer_key IS NOT NULL) ON VIOLATION DROP ROW,
+-- Customer changes: recording expectations only (no DROP ROW).
+CREATE OR REFRESH STREAMING TABLE meridian_t02.silver.customer_changes (
+  CONSTRAINT customer_key_required EXPECT (customer_key IS NOT NULL),
   CONSTRAINT customer_segment_valid
-    EXPECT (market_segment IN ('AUTOMOBILE', 'BUILDING', 'FURNITURE', 'HOUSEHOLD', 'MACHINERY'))
-    ON VIOLATION DROP ROW,
+    EXPECT (market_segment IN ('AUTOMOBILE', 'BUILDING', 'FURNITURE', 'HOUSEHOLD', 'MACHINERY')),
   CONSTRAINT customer_effective_date_required EXPECT (effective_date IS NOT NULL)
-    ON VIOLATION DROP ROW
 ) AS
 SELECT
   CAST(c_custkey AS BIGINT) AS customer_key,
@@ -76,4 +73,4 @@ SELECT
   CAST(effective_date AS DATE) AS effective_date,
   _source_file,
   _batch_id
-FROM STREAM(${catalog}.bronze.customer);
+FROM STREAM(meridian_t02.bronze.customer);

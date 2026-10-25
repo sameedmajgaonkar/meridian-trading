@@ -1,38 +1,37 @@
 -- Gold: star schema facts and dimensions with point-in-time SCD2 customer history.
--- Row filters enforce geographic entitlements declared via WITH ROW FILTER (see sql/governance/).
 
-CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.gold.dim_region AS
+CREATE OR REFRESH MATERIALIZED VIEW meridian_t02.gold.dim_region AS
 SELECT CAST(r_regionkey AS BIGINT) AS region_key,
        CAST(r_name AS STRING) AS region_name
-FROM ${catalog}.bronze.region
-QUALIFY row_number() OVER (PARTITION BY r_regionkey ORDER BY _source_file DESC, _row_hash DESC) = 1;
+FROM meridian_t02.bronze.region
+QUALIFY row_number() OVER (PARTITION BY r_regionkey ORDER BY _source_file DESC) = 1;
 
-CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.gold.dim_nation AS
+CREATE OR REFRESH MATERIALIZED VIEW meridian_t02.gold.dim_nation AS
 SELECT CAST(n_nationkey AS BIGINT) AS nation_key,
        CAST(n_name AS STRING) AS nation_name,
        CAST(n_regionkey AS BIGINT) AS region_key
-FROM ${catalog}.bronze.nation
-QUALIFY row_number() OVER (PARTITION BY n_nationkey ORDER BY _source_file DESC, _row_hash DESC) = 1;
+FROM meridian_t02.bronze.nation
+QUALIFY row_number() OVER (PARTITION BY n_nationkey ORDER BY _source_file DESC) = 1;
 
-CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.gold.dim_part AS
+CREATE OR REFRESH MATERIALIZED VIEW meridian_t02.gold.dim_part AS
 SELECT CAST(p_partkey AS BIGINT) AS part_key,
        CAST(p_name AS STRING) AS part_name,
        CAST(p_type AS STRING) AS part_type
-FROM ${catalog}.bronze.part
-QUALIFY row_number() OVER (PARTITION BY p_partkey ORDER BY _source_file DESC, _row_hash DESC) = 1;
+FROM meridian_t02.bronze.part
+QUALIFY row_number() OVER (PARTITION BY p_partkey ORDER BY _source_file DESC) = 1;
 
-CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.gold.dim_supplier
-WITH ROW FILTER ${catalog}.gov.supplier_nation_filter ON (supplier_nation_key)
+CREATE OR REFRESH MATERIALIZED VIEW meridian_t02.gold.dim_supplier
+WITH ROW FILTER meridian_t02.gov.supplier_nation_filter ON (supplier_nation_key)
 AS
 SELECT CAST(s_suppkey AS BIGINT) AS supplier_key,
        CAST(s_name AS STRING) AS supplier_name,
        CAST(s_nationkey AS BIGINT) AS supplier_nation_key,
        CAST(s_acctbal AS DECIMAL(18, 2)) AS supplier_account_balance
-FROM ${catalog}.bronze.supplier
-QUALIFY row_number() OVER (PARTITION BY s_suppkey ORDER BY _source_file DESC, _row_hash DESC) = 1;
+FROM meridian_t02.bronze.supplier
+QUALIFY row_number() OVER (PARTITION BY s_suppkey ORDER BY _source_file DESC) = 1;
 
-CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.gold.dim_customer_scd2
-WITH ROW FILTER ${catalog}.gov.region_nation_filter ON (customer_region_key, customer_nation_key)
+CREATE OR REFRESH MATERIALIZED VIEW meridian_t02.gold.dim_customer_scd2
+WITH ROW FILTER meridian_t02.gov.region_nation_filter ON (customer_region_key, customer_nation_key)
 AS
 SELECT
   h.customer_key,
@@ -46,13 +45,13 @@ SELECT
   h.__END_AT AS valid_to,
   h.__END_AT IS NULL AS is_current,
   concat(CAST(h.customer_key AS STRING), ':', CAST(h.__START_AT AS STRING)) AS customer_version_key
-FROM ${catalog}.silver.customer_history h
-LEFT JOIN ${catalog}.gold.dim_nation n
+FROM meridian_t02.silver.customer_history h
+LEFT JOIN meridian_t02.gold.dim_nation n
   ON h.customer_nation_key = n.nation_key;
 
 -- Header grain: one row per order, joined point-in-time to customer history.
-CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.gold.fct_orders
-WITH ROW FILTER ${catalog}.gov.region_nation_filter ON (customer_region_key, customer_nation_key)
+CREATE OR REFRESH MATERIALIZED VIEW meridian_t02.gold.fct_orders
+WITH ROW FILTER meridian_t02.gov.region_nation_filter ON (customer_region_key, customer_nation_key)
 AS
 SELECT
   o.order_key_hash,
@@ -67,17 +66,17 @@ SELECT
   h.customer_region_key,
   n.nation_name,
   r.region_name
-FROM ${catalog}.silver.orders o
-JOIN ${catalog}.gold.dim_customer_scd2 h
+FROM meridian_t02.silver.orders o
+JOIN meridian_t02.gold.dim_customer_scd2 h
   ON o.customer_key = h.customer_key
  AND o.order_date >= h.valid_from
  AND (h.valid_to IS NULL OR o.order_date < h.valid_to)
-JOIN ${catalog}.gold.dim_nation n ON h.customer_nation_key = n.nation_key
-JOIN ${catalog}.gold.dim_region r ON n.region_key = r.region_key;
+JOIN meridian_t02.gold.dim_nation n ON h.customer_nation_key = n.nation_key
+JOIN meridian_t02.gold.dim_region r ON n.region_key = r.region_key;
 
 -- Line grain: one row per order and line number.
-CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.gold.fct_order_lines
-WITH ROW FILTER ${catalog}.gov.region_nation_filter ON (customer_region_key, customer_nation_key)
+CREATE OR REFRESH MATERIALIZED VIEW meridian_t02.gold.fct_order_lines
+WITH ROW FILTER meridian_t02.gov.region_nation_filter ON (customer_region_key, customer_nation_key)
 AS
 SELECT
   l.order_key_hash,
@@ -107,5 +106,5 @@ SELECT
   datediff(l.receipt_date, l.ship_date) AS transit_days,
   CASE WHEN l.receipt_date > l.commit_date THEN 1 ELSE 0 END AS is_late,
   IF(l.return_flag = 'R', 1, 0) AS is_returned
-FROM ${catalog}.silver.order_lines l
-JOIN ${catalog}.gold.fct_orders o ON l.order_key_hash = o.order_key_hash;
+FROM meridian_t02.silver.order_lines l
+JOIN meridian_t02.gold.fct_orders o ON l.order_key_hash = o.order_key_hash;

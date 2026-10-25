@@ -6,16 +6,13 @@ variables:
   catalog:
     description: Target Unity Catalog for the lakehouse.
     default: meridian_t02
-  order_start_date:
-    description: Inclusive start date of the order window.
-    default: "1995-01-01"
-  order_end_date:
-    description: Exclusive end date of the order window.
-    default: "1996-01-01"
+  warehouse:
+    description: SQL Warehouse ID for SQL tasks.
+    default: 7c433c4d75a98ff6
   alert_email:
     description: Job failure notification recipient.
     default: ${workspace.current_user.userName}
-  simulate_batch:
+  batch:
     description: Landing batch to generate (1..3 or 'next').
     default: "next"
 
@@ -27,8 +24,9 @@ targets:
     default: true
     mode: development
   prod:
-    variables:
-      catalog: meridian_t02_prod
+    mode: production
+    workspace:
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
 
 sync:
   exclude:

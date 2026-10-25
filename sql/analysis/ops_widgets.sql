@@ -14,10 +14,10 @@ WHERE name = 'meridian_t02_job'
 ORDER BY period_start_time DESC;
 
 -- 7.3 Latest quality-gate results (our own ops table, known schema).
-SELECT check_name, status, value, checked_on
+SELECT check_name, check_value, status, batch, evaluated_at
 FROM meridian_t02.ops.quality_gate
-WHERE checked_on >= current_timestamp() - INTERVAL 7 DAYS
-ORDER BY checked_on DESC, check_name;
+WHERE evaluated_at >= current_timestamp() - INTERVAL 7 DAYS
+ORDER BY evaluated_at DESC, check_name;
 
 -- 7.4 Quarantine pressure over time (rows rejected per batch).
 SELECT _batch_id, entity, count(*) AS invalid_rows
