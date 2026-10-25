@@ -12,7 +12,7 @@
 -- and deterministic (latest source file, then row content hash), and every
 -- discarded duplicate occurrence is dispositioned in ops.duplicate_dispositions.
 
-CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.${schema_prefix}silver.orders (
+CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.silver.orders (
   CONSTRAINT orders_key_required EXPECT (order_key IS NOT NULL) ON VIOLATION DROP ROW,
   CONSTRAINT orders_customer_key_required EXPECT (customer_key IS NOT NULL) ON VIOLATION DROP ROW,
   CONSTRAINT orders_date_in_window
@@ -30,10 +30,10 @@ SELECT
   CAST(o_orderstatus AS STRING) AS order_status,
   _source_file,
   _batch_id
-FROM ${catalog}.${schema_prefix}bronze.orders
+FROM ${catalog}.bronze.orders
 QUALIFY row_number() OVER (PARTITION BY o_orderkey ORDER BY _source_file DESC, _row_hash DESC) = 1;
 
-CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.${schema_prefix}silver.order_lines (
+CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.silver.order_lines (
   CONSTRAINT lines_key_required EXPECT (order_key IS NOT NULL AND line_number IS NOT NULL)
     ON VIOLATION DROP ROW,
   CONSTRAINT lines_number_positive EXPECT (line_number > 0) ON VIOLATION DROP ROW,
@@ -65,14 +65,14 @@ SELECT
   CAST(l_returnflag AS STRING) AS return_flag,
   _source_file,
   _batch_id
-FROM ${catalog}.${schema_prefix}bronze.lineitem
+FROM ${catalog}.bronze.lineitem
 QUALIFY row_number() OVER (PARTITION BY l_orderkey, l_linenumber
                            ORDER BY _source_file DESC, _row_hash DESC) = 1;
 
 -- Complete per-batch customer snapshots, validated and deduplicated here —
 -- expectations are NOT supported with AUTO CDC FROM SNAPSHOT (docs, verified
 -- 2026-10-25), so the CDC flow reads this already-clean dataset.
-CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.${schema_prefix}silver.customer_snapshot (
+CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.silver.customer_snapshot (
   CONSTRAINT customer_key_required EXPECT (customer_key IS NOT NULL) ON VIOLATION DROP ROW,
   CONSTRAINT customer_segment_valid
     EXPECT (market_segment IN ('AUTOMOBILE', 'BUILDING', 'FURNITURE', 'HOUSEHOLD', 'MACHINERY'))
@@ -90,6 +90,6 @@ SELECT
   CAST(snapshot_effective_date AS DATE) AS snapshot_effective_date,
   _source_file,
   _batch_id
-FROM ${catalog}.${schema_prefix}bronze.customer
+FROM ${catalog}.bronze.customer
 QUALIFY row_number() OVER (PARTITION BY c_custkey, snapshot_effective_date
                            ORDER BY _source_file DESC, _row_hash DESC) = 1;

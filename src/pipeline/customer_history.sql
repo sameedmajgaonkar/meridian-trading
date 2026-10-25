@@ -25,20 +25,20 @@
 -- verified 2026-10-25): validation happens in silver.customer_snapshot
 -- above; history shape is re-checked afterwards by the quality gate.
 
-CREATE OR REFRESH STREAMING TABLE ${catalog}.${schema_prefix}silver.customer_history;
+CREATE OR REFRESH STREAMING TABLE ${catalog}.silver.customer_history;
 
 CREATE FLOW customer_snapshot_flow AS
-AUTO CDC INTO ${catalog}.${schema_prefix}silver.customer_history
+AUTO CDC INTO ${catalog}.silver.customer_history
 FROM SNAPSHOT (
   SELECT customer_key, customer_name, market_segment, customer_phone,
          customer_account_balance, customer_nation_key
-  FROM ${catalog}.${schema_prefix}silver.customer_snapshot
+  FROM ${catalog}.silver.customer_snapshot
   WHERE snapshot_effective_date =
-        (SELECT max(version) FROM ${catalog}.${schema_prefix}ops.customer_snapshot_versions)
+        (SELECT max(version) FROM ${catalog}.ops.customer_snapshot_versions)
 )
 WITH VERSION (
   SELECT version
-  FROM ${catalog}.${schema_prefix}ops.customer_snapshot_versions
+  FROM ${catalog}.ops.customer_snapshot_versions
   WHERE NOT EXISTS (SELECT 1 FROM last_snapshot_version())
      OR version > (SELECT version FROM last_snapshot_version())
   ORDER BY version

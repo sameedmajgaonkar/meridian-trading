@@ -6,32 +6,32 @@
 -- order's business date: joining is_current instead would rewrite historic
 -- revenue into today's segment.
 
-CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.${schema_prefix}gold.dim_region AS
+CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.gold.dim_region AS
 SELECT CAST(r_regionkey AS BIGINT) AS region_key,
        CAST(r_name AS STRING) AS region_name
-FROM ${catalog}.${schema_prefix}bronze.region
+FROM ${catalog}.bronze.region
 QUALIFY row_number() OVER (PARTITION BY r_regionkey ORDER BY _source_file DESC, _row_hash DESC) = 1;
 
-CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.${schema_prefix}gold.dim_nation AS
+CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.gold.dim_nation AS
 SELECT CAST(n_nationkey AS BIGINT) AS nation_key,
        CAST(n_name AS STRING) AS nation_name,
        CAST(n_regionkey AS BIGINT) AS region_key
-FROM ${catalog}.${schema_prefix}bronze.nation
+FROM ${catalog}.bronze.nation
 QUALIFY row_number() OVER (PARTITION BY n_nationkey ORDER BY _source_file DESC, _row_hash DESC) = 1;
 
-CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.${schema_prefix}gold.dim_part AS
+CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.gold.dim_part AS
 SELECT CAST(p_partkey AS BIGINT) AS part_key,
        CAST(p_name AS STRING) AS part_name,
        CAST(p_type AS STRING) AS part_type
-FROM ${catalog}.${schema_prefix}bronze.part
+FROM ${catalog}.bronze.part
 QUALIFY row_number() OVER (PARTITION BY p_partkey ORDER BY _source_file DESC, _row_hash DESC) = 1;
 
-CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.${schema_prefix}gold.dim_supplier AS
+CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.gold.dim_supplier AS
 SELECT CAST(s_suppkey AS BIGINT) AS supplier_key,
        CAST(s_name AS STRING) AS supplier_name,
        CAST(s_nationkey AS BIGINT) AS supplier_nation_key,
        CAST(s_acctbal AS DECIMAL(18, 2)) AS supplier_account_balance
-FROM ${catalog}.${schema_prefix}bronze.supplier
+FROM ${catalog}.bronze.supplier
 QUALIFY row_number() OVER (PARTITION BY s_suppkey ORDER BY _source_file DESC, _row_hash DESC) = 1;
 
 -- Runtime-verified 2026-10-26: WITH ROW FILTER declared on a pipeline MV
@@ -40,7 +40,7 @@ QUALIFY row_number() OVER (PARTITION BY s_suppkey ORDER BY _source_file DESC, _r
 -- inline mask-UDF calls bake the owner's unmasked values into the
 -- materialization. Enforcement therefore lives on the pipeline's
 -- __materialization_* base tables — see sql/governance/apply_policies.sql.
-CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.${schema_prefix}gold.dim_customer_scd2 AS
+CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.gold.dim_customer_scd2 AS
 SELECT
   h.customer_key,
   h.customer_name,
@@ -53,13 +53,13 @@ SELECT
   h.__END_AT AS valid_to,
   h.__END_AT IS NULL AS is_current,
   concat(CAST(h.customer_key AS STRING), ':', CAST(h.__START_AT AS STRING)) AS customer_version_key
-FROM ${catalog}.${schema_prefix}silver.customer_history h
-LEFT JOIN ${catalog}.${schema_prefix}gold.dim_nation n
+FROM ${catalog}.silver.customer_history h
+LEFT JOIN ${catalog}.gold.dim_nation n
   ON h.customer_nation_key = n.nation_key;
 
 -- Header grain: one row per order. Inner join drops headers without a valid
 -- customer version; the quality gate counts any such header.
-CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.${schema_prefix}gold.fct_orders AS
+CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.gold.fct_orders AS
 SELECT
   o.order_key_hash,
   o.order_key,
@@ -73,18 +73,18 @@ SELECT
   h.customer_region_key,
   n.nation_name,
   r.region_name
-FROM ${catalog}.${schema_prefix}silver.orders o
-JOIN ${catalog}.${schema_prefix}gold.dim_customer_scd2 h
+FROM ${catalog}.silver.orders o
+JOIN ${catalog}.gold.dim_customer_scd2 h
   ON o.customer_key = h.customer_key
  AND o.order_date >= h.valid_from
  AND (h.valid_to IS NULL OR o.order_date < h.valid_to)
-JOIN ${catalog}.${schema_prefix}gold.dim_nation n ON h.customer_nation_key = n.nation_key
-JOIN ${catalog}.${schema_prefix}gold.dim_region r ON n.region_key = r.region_key;
+JOIN ${catalog}.gold.dim_nation n ON h.customer_nation_key = n.nation_key
+JOIN ${catalog}.gold.dim_region r ON n.region_key = r.region_key;
 
 -- Line grain: one row per order and line number. Inherits the header's
 -- customer version and geography so entitlement and point-in-time semantics
 -- match the header fact exactly. KPI helper columns are computed here once.
-CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.${schema_prefix}gold.fct_order_lines AS
+CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.gold.fct_order_lines AS
 SELECT
   l.order_key_hash,
   l.line_number,
@@ -116,5 +116,5 @@ SELECT
   IF(l.commit_date IS NOT NULL AND l.receipt_date IS NOT NULL, 1, 0) AS late_eligible,
   IF(l.return_flag IN ('N', 'A', 'R'), 1, 0) AS return_eligible,
   IF(l.return_flag = 'R', 1, 0) AS is_returned
-FROM ${catalog}.${schema_prefix}silver.order_lines l
-JOIN ${catalog}.${schema_prefix}gold.fct_orders o ON l.order_key_hash = o.order_key_hash;
+FROM ${catalog}.silver.order_lines l
+JOIN ${catalog}.gold.fct_orders o ON l.order_key_hash = o.order_key_hash;

@@ -10,7 +10,7 @@
 -- Lines of quarantined headers never publish; they are dispositioned with the
 -- header's quarantine entry and excluded from pending.
 
-CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.${schema_prefix}ops.quarantine_invalid AS
+CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.ops.quarantine_invalid AS
 WITH orders_typed AS (
   SELECT
     CAST(o_orderkey AS BIGINT) AS order_key,
@@ -21,7 +21,7 @@ WITH orders_typed AS (
     row_number() OVER (PARTITION BY o_orderkey
                        ORDER BY _source_file DESC, _row_hash DESC) AS rn,
     _source_file, _batch_id
-  FROM ${catalog}.${schema_prefix}bronze.orders
+  FROM ${catalog}.bronze.orders
 ),
 lines_typed AS (
   SELECT
@@ -39,7 +39,7 @@ lines_typed AS (
     row_number() OVER (PARTITION BY l_orderkey, l_linenumber
                        ORDER BY _source_file DESC, _row_hash DESC) AS rn,
     _source_file, _batch_id
-  FROM ${catalog}.${schema_prefix}bronze.lineitem
+  FROM ${catalog}.bronze.lineitem
 ),
 customers_typed AS (
   SELECT
@@ -48,7 +48,7 @@ customers_typed AS (
     row_number() OVER (PARTITION BY c_custkey, snapshot_effective_date
                        ORDER BY _source_file DESC, _row_hash DESC) AS rn,
     _source_file, _batch_id
-  FROM ${catalog}.${schema_prefix}bronze.customer
+  FROM ${catalog}.bronze.customer
 )
 SELECT 'orders' AS entity, order_key, CAST(NULL AS INT) AS line_number, customer_key,
   filter(array(
@@ -99,7 +99,7 @@ FROM customers_typed
 WHERE rn = 1 AND (customer_key IS NULL
     OR NOT (market_segment IN ('AUTOMOBILE', 'BUILDING', 'FURNITURE', 'HOUSEHOLD', 'MACHINERY')));
 
-CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.${schema_prefix}ops.duplicate_dispositions AS
+CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.ops.duplicate_dispositions AS
 WITH orders_ranked AS (
   SELECT CAST(o_orderkey AS BIGINT) AS order_key,
          row_number() OVER (PARTITION BY o_orderkey
@@ -107,7 +107,7 @@ WITH orders_ranked AS (
          max(_row_hash) OVER (PARTITION BY o_orderkey)
            <> min(_row_hash) OVER (PARTITION BY o_orderkey) AS is_conflict,
          _row_hash, _source_file, _batch_id
-  FROM ${catalog}.${schema_prefix}bronze.orders
+  FROM ${catalog}.bronze.orders
 ),
 lines_ranked AS (
   SELECT CAST(l_orderkey AS BIGINT) AS order_key,
@@ -117,7 +117,7 @@ lines_ranked AS (
          max(_row_hash) OVER (PARTITION BY l_orderkey, l_linenumber)
            <> min(_row_hash) OVER (PARTITION BY l_orderkey, l_linenumber) AS is_conflict,
          _row_hash, _source_file, _batch_id
-  FROM ${catalog}.${schema_prefix}bronze.lineitem
+  FROM ${catalog}.bronze.lineitem
 ),
 customers_ranked AS (
   SELECT CAST(c_custkey AS BIGINT) AS customer_key,
@@ -126,7 +126,7 @@ customers_ranked AS (
          max(_row_hash) OVER (PARTITION BY c_custkey, snapshot_effective_date)
            <> min(_row_hash) OVER (PARTITION BY c_custkey, snapshot_effective_date) AS is_conflict,
          _row_hash, _source_file, _batch_id
-  FROM ${catalog}.${schema_prefix}bronze.customer
+  FROM ${catalog}.bronze.customer
 )
 SELECT 'orders' AS entity, order_key, CAST(NULL AS INT) AS line_number,
   _row_hash, is_conflict, _source_file, _batch_id
@@ -140,7 +140,7 @@ SELECT 'customer', CAST(NULL AS BIGINT), CAST(NULL AS INT),
   _row_hash, is_conflict, _source_file, _batch_id
 FROM customers_ranked WHERE rn > 1;
 
-CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.${schema_prefix}ops.pending_order_lines AS
+CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.ops.pending_order_lines AS
 SELECT
   l.order_key_hash,
   l.line_number,
@@ -150,21 +150,21 @@ SELECT
   -- contains EXISTS subqueries (UNSUPPORTED_SUBQUERY in higher-order
   -- functions) is usable here.
   concat_ws(',',
-    if(NOT EXISTS (SELECT 1 FROM ${catalog}.${schema_prefix}silver.orders h
+    if(NOT EXISTS (SELECT 1 FROM ${catalog}.silver.orders h
                    WHERE h.order_key_hash = l.order_key_hash), 'NO_HEADER', NULL),
-    if(EXISTS (SELECT 1 FROM ${catalog}.${schema_prefix}silver.orders h
+    if(EXISTS (SELECT 1 FROM ${catalog}.silver.orders h
                WHERE h.order_key_hash = l.order_key_hash)
-       AND NOT EXISTS (SELECT 1 FROM ${catalog}.${schema_prefix}gold.fct_orders f
+       AND NOT EXISTS (SELECT 1 FROM ${catalog}.gold.fct_orders f
                        WHERE f.order_key_hash = l.order_key_hash), 'NO_CUSTOMER_VERSION', NULL)
   ) AS reasons,
   l._source_file,
   l._batch_id
-FROM ${catalog}.${schema_prefix}silver.order_lines l
+FROM ${catalog}.silver.order_lines l
 WHERE NOT EXISTS (
-  SELECT 1 FROM ${catalog}.${schema_prefix}gold.fct_order_lines f
+  SELECT 1 FROM ${catalog}.gold.fct_order_lines f
   WHERE f.order_key_hash = l.order_key_hash AND f.line_number = l.line_number)
   -- A line whose header is quarantined never publishes; it is dispositioned
   -- with the header's quarantine entry, not by pending.
   AND NOT EXISTS (
-  SELECT 1 FROM ${catalog}.${schema_prefix}ops.quarantine_invalid q
+  SELECT 1 FROM ${catalog}.ops.quarantine_invalid q
   WHERE q.entity = 'orders' AND q.order_key = l.order_key);

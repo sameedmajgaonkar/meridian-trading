@@ -1,11 +1,9 @@
-# The single pipeline resource.
-# UC objects (catalog, schemas, volume) are created by sql/setup.
 resources:
   pipelines:
     meridian_t02_pipeline:
       name: meridian_t02_pipeline
       catalog: ${var.catalog}
-      schema: ${var.schema_prefix}bronze
+      schema: bronze
       serverless: true
       libraries:
         - file:
@@ -20,6 +18,5 @@ resources:
             path: ../src/pipeline/ops.sql
       configuration:
         catalog: ${var.catalog}
-        schema_prefix: ${var.schema_prefix}
         order_start_date: ${var.order_start_date}
         order_end_date: ${var.order_end_date}
