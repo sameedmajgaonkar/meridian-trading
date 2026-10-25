@@ -49,6 +49,8 @@ targets:
     mode: development
   prod:
     mode: production
+    workspace:
+      root_path: /Workspace/Users/igcoffin17@gmail.com/.bundle/${bundle.name}/${bundle.target}
 
 sync:
   exclude:

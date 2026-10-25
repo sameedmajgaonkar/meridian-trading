@@ -5,9 +5,9 @@ Desktop app work (Windows) — marked **PENDING UI** until screenshots exist.
 ## Connect
 
 1. Power BI Desktop → Get Data → **Azure Databricks**.
-2. Connection: host `dbc-7b9af537-03b9.cloud.databricks.com`, HTTP path of the
-   Serverless Starter Warehouse `a20a2b2aaf17c10f` (SQL editor → connection
-   details). Auth: Organizational account (the same user).
+2. Connection: host `dbc-746bc1e1-c295.cloud.databricks.com`, HTTP path of the
+   Serverless Starter Warehouse `/sql/1.0/warehouses/7c433c4d75a98ff6` (SQL editor → connection
+   details). Auth: Personal Access Token (PAT) or Databricks OAuth.
 3. Mode: **Direct Query** for `meridian_t02.gold.mv_trading` (and dims if
    needed). Import mode only if the visuals demand it — document the choice.
 
