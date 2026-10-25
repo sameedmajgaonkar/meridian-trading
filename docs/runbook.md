@@ -27,7 +27,7 @@ also what we probe for `is_member()` vs `is_account_group_member()`.*
 
 1.2 **SQL editor — create the UC objects**: run `sql/setup/create_project.sql`
 statement by statement. Expected: `SHOW SCHEMAS` lists landing/bronze/silver/
-gold/gov/ops + `customer_snapshot_versions` table + `landing.raw_files` volume.
+gold/gov/ops + `landing.raw_files` volume.
 If `CREATE CATALOG` is denied: record the denial message and set `catalog` in `databricks.yml`.
 - [ ] screenshot `evidence/p1_catalog.png` (Catalog Explorer showing the 6 schemas + volume)
 
@@ -212,8 +212,6 @@ paused=ON afterwards if you prefer it off in steady state.
 | CLI: `OS keyring unreachable` | sandbox dbus issue, not Databricks | export DBUS_SESSION_BUS_ADDRESS |
 | `CREATE CATALOG` denied | privilege missing on Free Edition | record denial → fallback SQL 11 → set `catalog`/`schema_prefix` vars |
 | Pipeline error mentioning `${catalog}` unresolved | pipeline parameter substitution not applied | set the literal catalog in `src/pipeline/*.sql` and redeploy (recorded fallback) |
-| `AUTO_CDC_FROM_SNAPSHOT_NON_EMPTY_TARGET_WITHOUT_VERSION` | WITH VERSION missing | should not happen — customer_history.sql includes it |
-| `Function last_snapshot_version() can only be used in the WITH VERSION clause` | it resolved, but outside WITH VERSION (e.g. in the snapshot query) | keep it ONLY in the WITH VERSION selector; the snapshot query uses `max(version)` + the one-version-per-update rule |
 | Gold MV built with 0 rows while sources have data | the MV was refreshed during the update that first CREATED its source — pipeline MV creation swaps `__staging_*` tables in, and a dependency can refresh against the not-yet-swapped (empty) source | rerun the pipeline update once tables exist (no swaps → clean recompute); verified 2026-10-25: `fct_orders` was 0 after the first creation update, the same PIT join returned 1,136,293 rows via warehouse SQL, and a recompute filled it |
 | `RESOURCE_DOES_NOT_EXIST: __materialization_mat_...` | out-of-band DROP of a pipeline dataset left the pipeline's mat registry stale — a NORMAL update replays the stale reference | the next update after `reset_pipeline.sql` must be a FULL REFRESH (`databricks pipelines start-update <id> --full-refresh`); safe when the version table holds ≤1 pending version |
 | `TABLE_DOES_NOT_EXIST: Staging Table '<uuid>'` | a pipeline update's staging swap-table vanished mid-run — a concurrent update raced it (observed: platform auto-retry `RETRY_ON_FAILURE` overlapping the failed update) | wait for pipeline IDLE, drop `__staging_%` orphans (reset file has the query), rerun; never trigger two updates at once |

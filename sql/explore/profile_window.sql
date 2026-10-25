@@ -42,11 +42,11 @@ SELECT
   sum(l_extendedprice * (1 - l_discount)) AS net_revenue_ex_tax,
   sum(l_extendedprice * l_discount) AS discount_given,
   sum(datediff(l_receiptdate, l_shipdate)) AS transit_days_sum,
-  count_if(l_receiptdate IS NOT NULL AND l_shipdate IS NOT NULL) AS transit_eligible_lines,
+  count_if(l_receiptdate IS NOT NULL AND l_shipdate IS NOT NULL) AS transit_valid_lines,
   count_if(l_receiptdate > l_commitdate) AS late_lines,
-  count_if(l_receiptdate IS NOT NULL AND l_commitdate IS NOT NULL) AS late_eligible_lines,
+  count_if(l_receiptdate IS NOT NULL AND l_commitdate IS NOT NULL) AS commit_valid_lines,
   count_if(l_returnflag = 'R') AS returned_lines,
-  count_if(l_returnflag IN ('R', 'A', 'N')) AS return_eligible_lines
+  count_if(l_returnflag IN ('R', 'A', 'N')) AS return_status_lines
 FROM scoped_lines;
 
 -- probe: source_orphans_by_ship_date

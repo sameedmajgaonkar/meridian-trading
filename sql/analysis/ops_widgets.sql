@@ -1,8 +1,5 @@
--- Phase 7 — operations dashboard widget queries. System tables observed live
--- 2026-10-25: jobs + pipelines timelines live in system.lakeflow (no
--- system.workflow schema on this workspace). Parameters (DATE) keep widgets
--- bounded; adjust look-back as needed.
--- shortcut: catalog is literal here (manual SQL-editor file).
+-- Operations telemetry queries over system tables and ops monitoring tables.
+-- dev catalog
 
 -- 7.1 Pipeline health: latest update per project pipeline.
 SELECT * FROM system.lakeflow.pipeline_update_timeline

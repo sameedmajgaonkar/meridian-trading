@@ -39,7 +39,7 @@ def build_checks(cat, prefix, batch, manifests):
     # 1. Physical reconciliation: Bronze = invalid + duplicate-discarded + accepted.
     for entity, silver in (("orders", "silver.orders"),
                            ("lineitem", "silver.order_lines"),
-                           ("customer", "silver.customer_snapshot")):
+                           ("customer", "silver.customer_changes")):
         zero(f"bronze_reconciliation_{entity}", f"""
             SELECT (SELECT count(*) FROM {p}bronze.{entity})
                  - ((SELECT count(*) FROM {p}ops.quarantine_invalid WHERE entity = '{entity}')

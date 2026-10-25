@@ -1,16 +1,5 @@
--- Phase 2 — Silver: typed, deduplicated, validated.
--- These are MATERIALIZED VIEWS (recomputed on every pipeline update), not
--- streaming tables: Structured Streaming does not allow non-time-window
--- functions (the row_number dedup) on a streaming read, and the contract's
--- dedup rule is "newest file wins" — a window, not first-seen streaming
--- dedup. Bronze remains append-only streaming (Auto Loader ingests only
--- newly landed files per update); Silver and Gold recompute from Bronze,
--- which is exactly the reconciliation model the quality gate enforces.
--- Invalid rows are dropped here (EXPECT ... ON VIOLATION DROP ROW) and are
--- preserved in ops.quarantine_invalid, which recomputes the same predicates
--- from Bronze. Duplicates never enter Silver: the dedup order is documented
--- and deterministic (latest source file, then row content hash), and every
--- discarded duplicate occurrence is dispositioned in ops.duplicate_dispositions.
+-- Silver: typed, validated datasets for orders, line items, and customer changes.
+-- Invalid records are dropped via EXPECT ... ON VIOLATION DROP ROW and logged in ops.quarantine_invalid.
 
 CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.silver.orders (
   CONSTRAINT orders_key_required EXPECT (order_key IS NOT NULL) ON VIOLATION DROP ROW,
@@ -69,15 +58,12 @@ FROM ${catalog}.bronze.lineitem
 QUALIFY row_number() OVER (PARTITION BY l_orderkey, l_linenumber
                            ORDER BY _source_file DESC, _row_hash DESC) = 1;
 
--- Complete per-batch customer snapshots, validated and deduplicated here —
--- expectations are NOT supported with AUTO CDC FROM SNAPSHOT (docs, verified
--- 2026-10-25), so the CDC flow reads this already-clean dataset.
-CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.silver.customer_snapshot (
+CREATE OR REFRESH STREAMING TABLE ${catalog}.silver.customer_changes (
   CONSTRAINT customer_key_required EXPECT (customer_key IS NOT NULL) ON VIOLATION DROP ROW,
   CONSTRAINT customer_segment_valid
     EXPECT (market_segment IN ('AUTOMOBILE', 'BUILDING', 'FURNITURE', 'HOUSEHOLD', 'MACHINERY'))
     ON VIOLATION DROP ROW,
-  CONSTRAINT customer_snapshot_date_required EXPECT (snapshot_effective_date IS NOT NULL)
+  CONSTRAINT customer_effective_date_required EXPECT (effective_date IS NOT NULL)
     ON VIOLATION DROP ROW
 ) AS
 SELECT
@@ -87,9 +73,7 @@ SELECT
   CAST(c_phone AS STRING) AS customer_phone,
   CAST(c_acctbal AS DECIMAL(18, 2)) AS customer_account_balance,
   CAST(c_nationkey AS BIGINT) AS customer_nation_key,
-  CAST(snapshot_effective_date AS DATE) AS snapshot_effective_date,
+  CAST(effective_date AS DATE) AS effective_date,
   _source_file,
   _batch_id
-FROM ${catalog}.bronze.customer
-QUALIFY row_number() OVER (PARTITION BY c_custkey, snapshot_effective_date
-                           ORDER BY _source_file DESC, _row_hash DESC) = 1;
+FROM STREAM(${catalog}.bronze.customer);

@@ -1,7 +1,5 @@
--- Phase 6 — parameterized analysis queries over the metric view. In the SQL
--- editor, drag each :parameter into the editor to create a typed widget
--- (date / number / text) and save each query for the AI/BI dashboard.
--- shortcut: catalog is literal here (manual SQL-editor file).
+-- Parameterized analysis queries over the metric view.
+-- dev catalog
 
 -- 6.1 Monthly KPI trend by order-time market segment. :order_month_start DATE
 SELECT order_month, market_segment_at_order_time,

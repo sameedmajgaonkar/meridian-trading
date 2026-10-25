@@ -1,10 +1,5 @@
--- Phase 3 — Gold star schema: conformed dimensions plus two fact grains.
--- dim_customer_scd2 normalizes the AUTO CDC columns to the contract names and
--- resolves the customer's region so every governed table carries the same
--- (region, nation) pair for the row filter.
--- The point-in-time join selects exactly one history version per order by the
--- order's business date: joining is_current instead would rewrite historic
--- revenue into today's segment.
+-- Gold: star schema facts and dimensions with point-in-time SCD2 customer history.
+-- Row filters enforce geographic entitlements declared via WITH ROW FILTER (see sql/governance/).
 
 CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.gold.dim_region AS
 SELECT CAST(r_regionkey AS BIGINT) AS region_key,
@@ -26,7 +21,9 @@ SELECT CAST(p_partkey AS BIGINT) AS part_key,
 FROM ${catalog}.bronze.part
 QUALIFY row_number() OVER (PARTITION BY p_partkey ORDER BY _source_file DESC, _row_hash DESC) = 1;
 
-CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.gold.dim_supplier AS
+CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.gold.dim_supplier
+WITH ROW FILTER ${catalog}.gov.supplier_nation_filter ON (supplier_nation_key)
+AS
 SELECT CAST(s_suppkey AS BIGINT) AS supplier_key,
        CAST(s_name AS STRING) AS supplier_name,
        CAST(s_nationkey AS BIGINT) AS supplier_nation_key,
@@ -34,13 +31,9 @@ SELECT CAST(s_suppkey AS BIGINT) AS supplier_key,
 FROM ${catalog}.bronze.supplier
 QUALIFY row_number() OVER (PARTITION BY s_suppkey ORDER BY _source_file DESC, _row_hash DESC) = 1;
 
--- Runtime-verified 2026-10-26: WITH ROW FILTER declared on a pipeline MV
--- registers in information_schema but does NOT enforce on the read path (the
--- read scans the materialization computed under the pipeline owner), and
--- inline mask-UDF calls bake the owner's unmasked values into the
--- materialization. Enforcement therefore lives on the pipeline's
--- __materialization_* base tables — see sql/governance/apply_policies.sql.
-CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.gold.dim_customer_scd2 AS
+CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.gold.dim_customer_scd2
+WITH ROW FILTER ${catalog}.gov.region_nation_filter ON (customer_region_key, customer_nation_key)
+AS
 SELECT
   h.customer_key,
   h.customer_name,
@@ -57,9 +50,10 @@ FROM ${catalog}.silver.customer_history h
 LEFT JOIN ${catalog}.gold.dim_nation n
   ON h.customer_nation_key = n.nation_key;
 
--- Header grain: one row per order. Inner join drops headers without a valid
--- customer version; the quality gate counts any such header.
-CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.gold.fct_orders AS
+-- Header grain: one row per order, joined point-in-time to customer history.
+CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.gold.fct_orders
+WITH ROW FILTER ${catalog}.gov.region_nation_filter ON (customer_region_key, customer_nation_key)
+AS
 SELECT
   o.order_key_hash,
   o.order_key,
@@ -81,10 +75,10 @@ JOIN ${catalog}.gold.dim_customer_scd2 h
 JOIN ${catalog}.gold.dim_nation n ON h.customer_nation_key = n.nation_key
 JOIN ${catalog}.gold.dim_region r ON n.region_key = r.region_key;
 
--- Line grain: one row per order and line number. Inherits the header's
--- customer version and geography so entitlement and point-in-time semantics
--- match the header fact exactly. KPI helper columns are computed here once.
-CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.gold.fct_order_lines AS
+-- Line grain: one row per order and line number.
+CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.gold.fct_order_lines
+WITH ROW FILTER ${catalog}.gov.region_nation_filter ON (customer_region_key, customer_nation_key)
+AS
 SELECT
   l.order_key_hash,
   l.line_number,
@@ -108,13 +102,10 @@ SELECT
   o.customer_region_key,
   o.nation_name,
   o.region_name,
-  CAST(l.extended_price * (1 - l.discount_rate) AS DECIMAL(18, 2)) AS net_revenue,
-  CAST(l.extended_price * l.discount_rate AS DECIMAL(18, 2)) AS discount_amount,
+  (l.extended_price * (1 - l.discount_rate)) AS net_revenue,
+  (l.extended_price * l.discount_rate) AS discount_amount,
   datediff(l.receipt_date, l.ship_date) AS transit_days,
   CASE WHEN l.receipt_date > l.commit_date THEN 1 ELSE 0 END AS is_late,
-  IF(l.ship_date IS NOT NULL AND l.receipt_date IS NOT NULL, 1, 0) AS transit_eligible,
-  IF(l.commit_date IS NOT NULL AND l.receipt_date IS NOT NULL, 1, 0) AS late_eligible,
-  IF(l.return_flag IN ('N', 'A', 'R'), 1, 0) AS return_eligible,
   IF(l.return_flag = 'R', 1, 0) AS is_returned
 FROM ${catalog}.silver.order_lines l
 JOIN ${catalog}.gold.fct_orders o ON l.order_key_hash = o.order_key_hash;
