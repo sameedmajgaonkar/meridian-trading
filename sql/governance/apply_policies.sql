@@ -1,16 +1,5 @@
--- Phase 4 — attach governance to Gold, Silver, and Schemas.
--- Runtime-verified on this workspace (2026-10-26, profile coffin-dbx):
---   * CREATE GOVERNED TAG is fully supported on Databricks Free Edition!
---     Allows creating account-level governed tags with predefined allowed values.
---   * Schema and Column tags: ALTER SCHEMA ... SET TAGS and ALTER TABLE ...
---     ALTER COLUMN ... SET TAGS apply governed tags across medallion layers and columns.
---   * CREATE POLICY (ABAC Policies) is fully supported on Databricks Free Edition!
---     Catalog-scoped tag-based ABAC column mask policies dynamically protect any
---     column carrying governed tags across tables.
---   * Row filters: declared at definition time on Gold MVs (src/pipeline/30_gold.sql)
---     via WITH ROW FILTER f ON (columns).
---   * Real UC column masks attach directly to silver.customer_history (streaming table).
--- shortcut: catalog is literal here (manual SQL-editor file).
+-- Applies governed tags, schema tags, column tags, and ABAC masking policies.
+-- Secures sensitive customer and financial data across the lakehouse.
 
 -- 1. Governed Tag Definitions (Account-Level Metadata Taxonomy)
 CREATE GOVERNED TAG sensitivity_level
@@ -66,7 +55,7 @@ ON COLUMN pii_col;
 
 -- 5. Row Filters on Governed Gold Tables
 -- (Note: Materialized views declare filters definition-time via WITH ROW FILTER
--- in src/pipeline/30_gold.sql; for standard Delta tables the syntax is SET ROW FILTER)
+-- in src/pipeline/gold.sql; for standard Delta tables the syntax is SET ROW FILTER)
 ALTER TABLE meridian_t02.gold.fct_orders
   SET ROW FILTER meridian_t02.gov.region_nation_filter ON (customer_region_key, customer_nation_key);
 

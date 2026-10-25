@@ -39,7 +39,7 @@ QUALIFY row_number() OVER (PARTITION BY s_suppkey ORDER BY _source_file DESC, _r
 -- read scans the materialization computed under the pipeline owner), and
 -- inline mask-UDF calls bake the owner's unmasked values into the
 -- materialization. Enforcement therefore lives on the pipeline's
--- __materialization_* base tables — see sql/governance/32_apply.sql.
+-- __materialization_* base tables — see sql/governance/apply_policies.sql.
 CREATE OR REFRESH MATERIALIZED VIEW ${catalog}.${schema_prefix}gold.dim_customer_scd2 AS
 SELECT
   h.customer_key,

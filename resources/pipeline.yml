@@ -1,7 +1,5 @@
-# Phase 5 — the single pipeline resource (brief constraint: one pipeline).
-# UC objects (catalog / schemas / volume) are created by sql/setup and are
-# deliberately NOT bundle-managed: `bundle destroy` must never drop data
-# (see docs/decisions/adr-006-bundle-ownership.md).
+# The single pipeline resource.
+# UC objects (catalog, schemas, volume) are created by sql/setup.
 resources:
   pipelines:
     meridian_t02_pipeline:
@@ -11,15 +9,15 @@ resources:
       serverless: true
       libraries:
         - file:
-            path: ../src/pipeline/00_bronze.sql
+            path: ../src/pipeline/bronze.sql
         - file:
-            path: ../src/pipeline/10_silver.sql
+            path: ../src/pipeline/silver.sql
         - file:
-            path: ../src/pipeline/20_customer_scd2.sql
+            path: ../src/pipeline/customer_history.sql
         - file:
-            path: ../src/pipeline/30_gold.sql
+            path: ../src/pipeline/gold.sql
         - file:
-            path: ../src/pipeline/40_ops.sql
+            path: ../src/pipeline/ops.sql
       configuration:
         catalog: ${var.catalog}
         schema_prefix: ${var.schema_prefix}

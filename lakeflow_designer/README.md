@@ -1,7 +1,7 @@
 # Lakeflow Designer — gold.vdp_top_customers (Phase 2/6 UI exercise)
 
 The brief requires one Designer-built visual data product. The equivalent SQL
-is in `sql/analysis/53_vdp_equivalent.sql`; build it in the Designer UI with
+is in `sql/analysis/top_customers.sql`; build it in the Designer UI with
 these operators, then commit the actual export (do not fabricate one).
 
 ## Steps

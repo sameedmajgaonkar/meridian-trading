@@ -57,7 +57,7 @@ quirk, not a Databricks denial.
 In the `sameed-dbx` SQL warehouse (or via `databricks experimental aitools tools query --profile sameed-dbx`):
 
 ```sql
--- see sql/setup/00_inspect_samples.sql and sql/setup/01_profile.sql
+-- see sql/explore/inspect_samples.sql and sql/explore/profile_window.sql
 SHOW SCHEMAS IN samples;
 DESCRIBE TABLE samples.tpch.orders;
 SELECT min(o_orderdate), max(o_orderdate), count(*) FROM samples.tpch.orders;
@@ -86,10 +86,10 @@ Verified live on 2026-10-25 (see `docs/capability_matrix.md` and `evidence/runs/
 
 ## Quickstart
 
-1. Create the two groups + run `sql/setup/10_create_project.sql` (runbook 1.1–1.2)
+1. Create the two groups + run `sql/setup/create_project.sql` (runbook 1.1–1.2)
 2. `databricks bundle deploy --profile coffin-dbx --target dev`
 3. Run `meridian_t02_job` (lands 3 batches → pipeline update → quality gate)
-4. Run `sql/metric_views/20_mv_trading.sql`, then governance 30–34
+4. Run `sql/metric_views/trading_metrics.sql`, then governance SQL files
 5. Build the two dashboards, Genie space, Power BI (runbook 6–9)
 
 ## Phases

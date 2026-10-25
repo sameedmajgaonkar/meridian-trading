@@ -21,7 +21,7 @@ import json
 
 from pyspark.sql import SparkSession, functions as F
 
-from injection import (
+from bad_data import (
     BATCH_EFFECTIVE_DATES,
     CUSTOMER_RULES,
     EARLY_ORDER_LIMIT,

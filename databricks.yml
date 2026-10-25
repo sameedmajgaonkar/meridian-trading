@@ -31,7 +31,7 @@ variables:
       so drive the three-batch story with --var simulate_batch=1, then 2, then 3.
     default: "3"
   pipeline_full_refresh:
-    description: Set true ONLY for the first run after sql/setup/20_reset_pipeline.sql
+    description: Set true ONLY for the first run after sql/setup/reset_pipeline.sql
       (out-of-band drops desync the pipeline's mat registry; the reset rule
       requires one full refresh). Keep false otherwise — a full refresh replays
       every pending snapshot version in one update and breaks the SCD2 story.
@@ -58,4 +58,3 @@ sync:
     - tests/**
     - "*.pdf"
     - "*.png"
-    - CLAUDE_PROMPT_PROJECT_MERIDIAN_TRADING.md

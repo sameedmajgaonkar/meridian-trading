@@ -16,7 +16,7 @@ Desktop app work (Windows) — marked **PENDING UI** until screenshots exist.
 1. **Line chart**: X `order_month`, Y net revenue (MEASURE(net_revenue)).
 2. **Bar chart**: X `market_segment_at_order_time`, Y average order value.
 3. **Card or table**: return rate + late delivery rate overall.
-4. Optional table: `sql/analysis/53_vdp_equivalent.sql` results (top customers).
+4. Optional table: `sql/analysis/top_customers.sql` results (top customers).
 
 ## Verify (record in evidence)
 

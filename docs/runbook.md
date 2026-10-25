@@ -25,14 +25,10 @@ Workspace admin → **Settings → Identity & access → Groups → Add group**:
 also what we probe for `is_member()` vs `is_account_group_member()`.*
 - [ ] screenshot `evidence/p1_groups.png`
 
-1.2 **SQL editor — create the UC objects**: run `sql/setup/10_create_project.sql`
+1.2 **SQL editor — create the UC objects**: run `sql/setup/create_project.sql`
 statement by statement. Expected: `SHOW SCHEMAS` lists landing/bronze/silver/
 gold/gov/ops + `customer_snapshot_versions` table + `landing.raw_files` volume.
-If `CREATE CATALOG` is denied: record the denial message in
-`docs/decisions/adr-005-platform-limitations.md`, run
-`sql/setup/11_workspace_catalog_fallback.sql`, then set `catalog` +
-`schema_prefix` (`t02_`) in `databricks.yml` and re-run
-`databricks bundle validate`.
+If `CREATE CATALOG` is denied: record the denial message and set `catalog` in `databricks.yml`.
 - [ ] screenshot `evidence/p1_catalog.png` (Catalog Explorer showing the 6 schemas + volume)
 
 1.3 **CLI — deploy the bundle** (creates the pipeline + job only):
@@ -71,7 +67,7 @@ auto-retry a FAILED update (`RETRY_ON_FAILURE` in
 `system.lakeflow.pipeline_update_timeline`); a retry can race the failed
 update's staging cleanup — if you ever see
 `TABLE_DOES_NOT_EXIST: Staging Table ...`, let all updates settle to IDLE,
-clean orphans (see `sql/setup/20_reset_pipeline.sql`), and rerun.
+clean orphans (see `sql/setup/reset_pipeline.sql`), and rerun.
 - [ ] job run URL captured
 - [ ] **UI** screenshot `evidence/p1_bronze_tables.png` (Catalog Explorer → bronze schema)
 
@@ -127,7 +123,7 @@ SELECT * FROM meridian_t02.ops.pending_order_lines;
 
 ## Step 3 — Phase 3: metric view + reconciliation
 
-3.1 **SQL editor**: run `sql/metric_views/20_mv_trading.sql` (creates
+3.1 **SQL editor**: run `sql/metric_views/trading_metrics.sql` (creates
 `gold.mv_trading` as YAML 1.1 metric view with the one_to_many join).
 
 3.2 Reconcile the seven KPIs against independent source SQL:
@@ -145,24 +141,21 @@ simulator manifests (raw-source baseline); show `ops.quality_gate` PASS rows.
 
 ## Step 4 — Phase 4: governance
 
-4.1 Run `sql/governance/30_entitlements.sql` → `31_udfs.sql` → `32_apply.sql`
-→ `33_grants.sql` in that order (32 needs Gold tables to exist).
-4.2 Run `sql/governance/34_audit_and_tests.sql` as admin; save outputs.
-4.3 **Probe `is_member`**: if the first 31_udfs statement errors on
-`is_member`, replace it with `is_account_group_member` in 31 + record in
-`docs/decisions/adr-005-platform-limitations.md`.
+4.1 Run `sql/governance/entitlements.sql` → `functions.sql` → `apply_policies.sql`
+→ `grants.sql` in that order (apply_policies needs Gold tables to exist).
+4.2 Run `sql/governance/audit.sql` as admin; save outputs.
+4.3 **Probe `is_account_group_member`**: if the first function statement errors on
+`is_account_group_member`, swap to `is_member`.
 4.4 **Probe governed tags** once: Catalog Explorer → any Gold table → Tags →
-try Add tag. Expected blocked (account-level feature); record the result.
-4.5 Restricted-principal checks (34 file, last 2 queries): log in as a
-non-admin test user with an entitlements row (see 30's comment) — or, if only
+try Add tag.
+4.5 Restricted-principal checks (audit file, last 2 queries): log in as a
+non-admin test user with an entitlements row (see entitlements.sql) — or, if only
 one identity exists, run the queries and record that the check is covered by
 the direct function tests instead.
 - [ ] `evidence/runs/<ts>_governance_audit.txt`
 - [ ] screenshot `evidence/p4_row_filter.png` (per-region counts)
 - [ ] screenshot `evidence/p4_masks.png` (masked vs unmasked phone/balance)
-- [ ] metric view still queries (run 3.2 again; if a row-filter error appears,
-    record it in `docs/capability_matrix.md` and re-create the metric view —
-    documented fallback: keep metric view on the pre-filter snapshot)
+- [ ] metric view still queries (run 3.2 again)
 
 ## Step 5 — Phase 5: bundle, job, quality gate (mostly done by deploy)
 
@@ -172,18 +165,18 @@ the direct function tests instead.
 
 ## Step 6 — Phase 6: SQL queries + AI/BI dashboard
 
-6.1 Open each query in `sql/analysis/50_kpi_queries.sql` in the SQL editor,
+6.1 Open each query in `sql/analysis/kpi_queries.sql` in the SQL editor,
 create the typed parameter widgets by dragging the `:param` markers, save
 all three.
 6.2 **UI — create the dashboard**: Databricks → Dashboards → Create; add 4
 widgets: (a) monthly KPI trend (6.1 by month), (b) region revenue mix (6.2),
 (c) order-status split (6.3), (d) top-10 customers per segment from
-`sql/analysis/53_vdp_equivalent.sql`. Publish to the workspace.
+`sql/analysis/top_customers.sql`. Publish to the workspace.
 - [x] screenshot `evidence/p6_dashboard.png` (Meridian Trading — Wholesale Executive KPIs)
 
 ## Step 7 — Phase 7: operations dashboard
 
-7.1 Create a second dashboard from `sql/analysis/54_ops_widgets.sql` widgets:
+7.1 Create a second dashboard from `sql/analysis/ops_widgets.sql` widgets:
 pipeline health, job runs, quality gate, quarantine pressure, spend, audit.
 - [x] Operations dashboard created and published (Meridian Trading — Operations Telemetry)
 - [ ] screenshot `evidence/p7_ops_dashboard.png` (pending upload)
@@ -191,8 +184,8 @@ pipeline health, job runs, quality gate, quarantine pressure, spend, audit.
 ## Step 8 — Phase 8: Genie
 
 8.1 **UI**: Databricks → Genie → New space over `meridian_t02.gold`; paste the
-instructions + examples from `docs/genie_setup.md`; run the benchmark questions.
-- [x] Genie Space created and benchmarks evaluated (`docs/genie_examples.md`)
+instructions + examples from `docs/genie.md`; run the benchmark questions.
+- [x] Genie Space created and benchmarks evaluated (`docs/genie.md`)
 - [ ] screenshot `evidence/p8_genie.png`
 
 ## Step 9 — Phase 9: Power BI
@@ -219,20 +212,20 @@ paused=ON afterwards if you prefer it off in steady state.
 | CLI: `OS keyring unreachable` | sandbox dbus issue, not Databricks | export DBUS_SESSION_BUS_ADDRESS |
 | `CREATE CATALOG` denied | privilege missing on Free Edition | record denial → fallback SQL 11 → set `catalog`/`schema_prefix` vars |
 | Pipeline error mentioning `${catalog}` unresolved | pipeline parameter substitution not applied | set the literal catalog in `src/pipeline/*.sql` and redeploy (recorded fallback) |
-| `AUTO_CDC_FROM_SNAPSHOT_NON_EMPTY_TARGET_WITHOUT_VERSION` | WITH VERSION missing | should not happen — 20_customer_scd2.sql includes it |
+| `AUTO_CDC_FROM_SNAPSHOT_NON_EMPTY_TARGET_WITHOUT_VERSION` | WITH VERSION missing | should not happen — customer_history.sql includes it |
 | `Function last_snapshot_version() can only be used in the WITH VERSION clause` | it resolved, but outside WITH VERSION (e.g. in the snapshot query) | keep it ONLY in the WITH VERSION selector; the snapshot query uses `max(version)` + the one-version-per-update rule |
 | Gold MV built with 0 rows while sources have data | the MV was refreshed during the update that first CREATED its source — pipeline MV creation swaps `__staging_*` tables in, and a dependency can refresh against the not-yet-swapped (empty) source | rerun the pipeline update once tables exist (no swaps → clean recompute); verified 2026-10-25: `fct_orders` was 0 after the first creation update, the same PIT join returned 1,136,293 rows via warehouse SQL, and a recompute filled it |
-| `RESOURCE_DOES_NOT_EXIST: __materialization_mat_...` | out-of-band DROP of a pipeline dataset left the pipeline's mat registry stale — a NORMAL update replays the stale reference | the next update after `20_reset_pipeline.sql` must be a FULL REFRESH (`databricks pipelines start-update <id> --full-refresh`); safe when the version table holds ≤1 pending version |
+| `RESOURCE_DOES_NOT_EXIST: __materialization_mat_...` | out-of-band DROP of a pipeline dataset left the pipeline's mat registry stale — a NORMAL update replays the stale reference | the next update after `reset_pipeline.sql` must be a FULL REFRESH (`databricks pipelines start-update <id> --full-refresh`); safe when the version table holds ≤1 pending version |
 | `TABLE_DOES_NOT_EXIST: Staging Table '<uuid>'` | a pipeline update's staging swap-table vanished mid-run — a concurrent update raced it (observed: platform auto-retry `RETRY_ON_FAILURE` overlapping the failed update) | wait for pipeline IDLE, drop `__staging_%` orphans (reset file has the query), rerun; never trigger two updates at once |
-| SCD2 history has fewer versions than expected (shape checks pass) | a pipeline update processed ≥2 pending versions (multi-version replay) | run `sql/setup/20_reset_pipeline.sql` (empties the version table), then rerun batches strictly 1 → 2 → 3; the gate's `scd2_segment_versions_*` checks now fail loudly on this |
-| `CANNOT_CHANGE_DATASET_TYPE` (STREAMING_TABLE ↔ MATERIALIZED_VIEW) | a dataset's type changed in pipeline SQL but the old object still exists | run `sql/setup/20_reset_pipeline.sql` (drops pipeline datasets; keeps volume, manifests), redeploy, rerun |
+| SCD2 history has fewer versions than expected (shape checks pass) | a pipeline update processed ≥2 pending versions (multi-version replay) | run `sql/setup/reset_pipeline.sql` (empties the version table), then rerun batches strictly 1 → 2 → 3; the gate's `scd2_segment_versions_*` checks now fail loudly on this |
+| `CANNOT_CHANGE_DATASET_TYPE` (STREAMING_TABLE ↔ MATERIALIZED_VIEW) | a dataset's type changed in pipeline SQL but the old object still exists | run `sql/setup/reset_pipeline.sql` (drops pipeline datasets; keeps volume, manifests), redeploy, rerun |
 | `APPLY_CHANGES_FROM_SNAPSHOT_ERROR.OUT_OF_ORDER_SNAPSHOT_VERSION` | version table got a smaller/equal date | insert only strictly increasing effective dates |
 | `INVALID_AUTO_CDC_FROM_SNAPSHOT_VERSION_QUERY` | version query returned >1 row or NULL | keep the `LIMIT 1` selector as shipped |
 | `RESOURCE_EXHAUSTED` / `CLUSTER_CREATION_RESOURCE_EXHAUSTED` on any serverless task or pipeline | free tier has ONE serverless slot shared by the SQL warehouse + job tasks + the pipeline; something else is holding it (usually the starter warehouse RUNNING) | stop the warehouse (`POST /api/2.0/sql/warehouses/<id>/stop`), wait for state STOPPED, rerun; keep probes short and stop the warehouse after each probe batch. Both workspaces showed this on 2026-10-26 |
-| quality gate FAIL `bronze_reconciliation_*` | quarantine predicates drifted from silver expectations | keep 10_silver.sql and 40_ops.sql predicates identical |
+| quality gate FAIL `bronze_reconciliation_*` | quarantine predicates drifted from silver expectations | keep silver.sql and ops.sql predicates identical |
 | metric view errors after Phase 4 | metric view over row-filtered source unsupported in materialization mode | see capability_matrix fallback |
 | `spark_python_task` rejected | serverless environment spec drifted | keep `environment_key: default` from job.yml |
 | Gate task fails with 0 rows in `ops.quality_gate` and serverless logs are empty | serverless task stdout/logs are NOT retrievable via the Jobs API (`get-output` returns empty error/logs fields) — a silent exception is invisible; the original DataFrameWriter write path failed without a trace | gate now writes breadcrumbs + every check row via a single `INSERT INTO … VALUES` (the mechanism proven by the version-table insert); diagnose by reading `ops.quality_gate`, not task logs |
-| Quarantine rows exist but `failure_reasons` is NULL for all of them | Spark's `array_remove(array(...), NULL)` returns **NULL** when the element argument is NULL (short-circuits the whole function; warehouse-verified 2026-10-25) | use `filter(array(...), x -> x IS NOT NULL)` — fixed in `40_ops.sql` (quarantine ×3 + pending reasons) |
+| Quarantine rows exist but `failure_reasons` is NULL for all of them | Spark's `array_remove(array(...), NULL)` returns **NULL** when the element argument is NULL (short-circuits the whole function; warehouse-verified 2026-10-25) | use `filter(array(...), x -> x IS NOT NULL)` — fixed in `ops.sql` (quarantine ×3 + pending reasons) |
 | Gate KPI `lines/returns/net_revenue` FAIL by a small delta while `orders` reconciles exactly | the manifest's `expected_valid` counted lines of quarantined headers — those lines never publish (the fact's inner join drops them) and sit as permanent `NO_HEADER` pending rows | fixed in `simulate.py`: expected values count only lines with a valid in-shard header; `pending_order_lines` excludes header-quarantined orphans (dispositioned with the header's quarantine entry). Re-running simulate rewrites landed manifests (entity dirs skip idempotently; manifests rewrite unconditionally) |
 | Manifest injection counts are 2× for exact-duplicate rules | the manifest counted matching rows AFTER `unionByName` added the copies (originals + copies) | fixed in `simulate.py`: `apply_rules` counts injections before each rule extends/mutates the frame |

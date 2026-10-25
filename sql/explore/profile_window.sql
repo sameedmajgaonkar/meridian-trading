@@ -1,7 +1,7 @@
 -- Bind start_date and end_date as DATE parameters: [start, end).
 -- Scope lines by their ORDER DATE through the header; retain next-year shipments.
 -- These are logical scope limits, not a guarantee of physical file pruning.
--- Candidate source names must first be confirmed with 00_inspect_samples.sql.
+-- Candidate source names must first be confirmed with inspect_samples.sql.
 
 -- probe: order_grain
 SELECT

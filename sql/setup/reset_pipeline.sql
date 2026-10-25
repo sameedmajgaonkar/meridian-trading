@@ -22,7 +22,7 @@
 --     directory that already has files is skipped) and the quality gate
 --     reconciles against the manifests.
 --   * gov.* (entitlements, row filters, UDFs) and the schemas/volume
---     themselves — created by sql/setup/10_create_project.sql, not the bundle.
+--     themselves — created by sql/setup/create_project.sql, not the bundle.
 --
 -- What is EMPTIED on purpose:
 --   * ops.customer_snapshot_versions — the runtime resolves
@@ -33,7 +33,7 @@
 --     (--batch 1, then 2, then 3) re-registers exactly one new version.
 --     The simulator re-inserts rows idempotently (WHERE NOT EXISTS).
 --   * gov.* (entitlements, row filters, UDFs) and the schemas/volume
---     themselves — created by sql/setup/10_create_project.sql, not the bundle.
+--     themselves — created by sql/setup/create_project.sql, not the bundle.
 --
 -- Syntax per LIVE VERIFICATION (2026-10-25, this runtime): pipeline-managed
 -- materialized views register as tables and reject DROP MATERIALIZED_VIEW

@@ -1,7 +1,5 @@
--- Phase 4 — governance UDFs (created once; referenced by 32_apply.sql).
--- is_member() is probed in the runbook; if a Free Edition warehouse rejects
--- it, swap both functions to is_account_group_member() (ADR-005 fallback).
--- shortcut: catalog is literal here (manual SQL-editor file).
+-- Governance functions for row filtering and column masking.
+-- Defines access logic used by row filters and centralized ABAC policies.
 CREATE OR REPLACE FUNCTION meridian_t02.gov.region_nation_filter(
   region_key BIGINT, nation_key BIGINT)
 RETURNS BOOLEAN
