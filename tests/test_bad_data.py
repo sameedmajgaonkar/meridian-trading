@@ -1,7 +1,6 @@
 """Unit tests for the deterministic landing plan (src/landing/bad_data.py).
 
-No Databricks dependency: the injection plan is pure Python on purpose so the
-whole batch plan is testable locally before anything is deployed.
+Pure Python tests runnable locally with stdlib unittest.
 """
 
 import sys
@@ -13,22 +12,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src" / "landing"))
 import bad_data
 
 
-class ShardTest(unittest.TestCase):
-    def test_shards_are_disjoint_and_cover_the_whole_window(self):
-        spans = [bad_data.shard_range("1995-01-01", b) for b in (1, 2, 3)]
-        self.assertEqual(spans[0], ("1995-01-01", "1995-05-01"))
-        self.assertEqual(spans[1], ("1995-05-01", "1995-09-01"))
-        self.assertEqual(spans[2], ("1995-09-01", "1996-01-01"))
-        # end-exclusive chain: no gap, no overlap, window end reached
-        self.assertEqual(spans[0][1], spans[1][0])
-        self.assertEqual(spans[1][1], spans[2][0])
-        self.assertEqual(spans[2][1], "1996-01-01")
+class BatchPlanTest(unittest.TestCase):
+    def test_batches_cover_the_year_without_gaps(self):
+        b1 = bad_data.BATCHES[1]
+        b2 = bad_data.BATCHES[2]
+        b3 = bad_data.BATCHES[3]
+        self.assertEqual(b1["start"], "1995-01-01")
+        self.assertEqual(b1["end"], b2["start"])
+        self.assertEqual(b2["end"], b3["start"])
+        self.assertEqual(b3["end"], "1996-01-01")
 
-    def test_effective_dates_are_inside_the_window_and_ordered(self):
-        dates = [bad_data.BATCH_EFFECTIVE_DATES[b] for b in (1, 2, 3)]
+    def test_snapshot_dates_are_ordered_and_within_window(self):
+        dates = [bad_data.BATCHES[b]["snapshot_date"] for b in (1, 2, 3)]
         self.assertEqual(dates, sorted(dates))
-        self.assertEqual(dates[0], "1995-01-01")
-        self.assertTrue(all("1995" in d for d in dates))
+        self.assertTrue(all(d.startswith("1995-") for d in dates))
 
 
 class SegmentChangeTest(unittest.TestCase):
@@ -37,36 +34,35 @@ class SegmentChangeTest(unittest.TestCase):
         self.assertEqual(bad_data.segment_after("MACHINERY"), "AUTOMOBILE")
 
     def test_two_customers_reach_three_versions(self):
-        once = {k for b in (2, 3) for k, n in bad_data.changes_for_batch(b) if n == 1}
-        twice = {k for b in (2, 3) for k, n in bad_data.changes_for_batch(b) if n == 2}
-        self.assertEqual(len(twice), 2)
-        self.assertTrue(twice.issubset(once))
-        self.assertGreaterEqual(len(once - twice), 3)
+        keys = list(range(100, 120))
+        b2_changes = bad_data.segment_changes(2, keys)
+        b3_changes = bad_data.segment_changes(3, keys)
+        self.assertEqual(len(b2_changes), 5)
+        self.assertEqual(len(b3_changes), 7)  # 5 new + 2 repeat
+
+        b2_keys = {k for k, _ in b2_changes}
+        b3_repeat_keys = {k for k, v in b3_changes if v == 2}
+        self.assertEqual(len(b3_repeat_keys), 2)
+        self.assertTrue(b3_repeat_keys.issubset(b2_keys))
 
     def test_batch_1_makes_no_changes(self):
-        self.assertEqual(bad_data.changes_for_batch(1), [])
+        keys = list(range(100, 120))
+        self.assertEqual(bad_data.segment_changes(1, keys), [])
 
 
 class RuleTest(unittest.TestCase):
-    def test_rules_have_names_predicates_and_valid_actions(self):
-        for rules in (bad_data.ORDERS_RULES, bad_data.LINEITEM_RULES,
-                      bad_data.CUSTOMER_RULES):
+    def test_rules_have_names_and_sampled_predicates(self):
+        for rules in (bad_data.ORDERS_RULES, bad_data.LINEITEM_RULES):
             for name, pred, action in rules:
                 self.assertTrue(name)
-                self.assertIn("%", pred)
+                self.assertIn("% 25000", pred)
                 if action is not None:
                     col, repl = action
                     self.assertTrue(col and repl)
 
-    def test_expected_rule_count_math(self):
-        # predicates are `key % modulus == residue`; the helper mirrors that
-        keys = list(range(1, 101))
-        self.assertEqual(sum(1 for k in keys if k % 10 == 3), 10)
-        self.assertEqual(sum(1 for k in keys if k % 97 == 3), 2)
-
     def test_early_order_plan(self):
         self.assertGreaterEqual(bad_data.EARLY_ORDER_LIMIT, 1)
-        self.assertIn("%", bad_data.EARLY_ORDER_PREDICATE)
+        self.assertIn("% 25000", bad_data.EARLY_ORDER_PREDICATE)
 
 
 if __name__ == "__main__":
