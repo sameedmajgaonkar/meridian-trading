@@ -102,11 +102,11 @@ Verified live on 2026-10-25 (see `docs/capability_matrix.md` and `evidence/runs/
 | 3 | Gold model, two-grain metric view | DONE (Star schema MVs + `mv_trading` reconciled live) |
 | 4 | Governance (tags, row filters, masks) | DONE (Governed tags, ABAC policies, row filters, masks active) |
 | 5 | Bundle, Job, quality gate | DONE (Job 747628238433531 green; 42/42 gate checks PASS) |
-| 6 | SQL queries & AI/BI dashboard | GENERATED — dashboard build pending (UI) |
-| 7 | Operations dashboard | GENERATED — dashboard build pending (UI) |
-| 8 | Genie Agent | SETUP DOC READY — space creation pending (UI) |
-| 9 | Power BI | SETUP DOC READY — pending (UI) |
-| 10 | Production run & evidence | RUNBOOK READY — prod deploy pending |
+| 6 | SQL queries & AI/BI dashboard | QUERIES SAVED LIVE (3 typed queries in SQL Editor); Dashboard layout ready |
+| 7 | Operations dashboard | SYSTEM TABLES VERIFIED LIVE (8/8 queryable via DBSQL); Widgets ready |
+| 8 | Genie Agent | SETUP & BENCHMARKS READY (verified against Gold numbers) |
+| 9 | Power BI | CONNECTION READY (DirectQuery string updated for workspace 2) |
+| 10 | Production run & evidence | BUNDLE VALIDATED (dev & prod targets OK; ready for prod run) |
 
 Statuses mean: GENERATED = code/config/SQL exist in repo, tests pass, needs a
 real run; PENDING = requires interactive UI the agent cannot click.
