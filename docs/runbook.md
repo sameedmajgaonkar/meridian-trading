@@ -185,7 +185,8 @@ widgets: (a) monthly KPI trend (6.1 by month), (b) region revenue mix (6.2),
 
 7.1 Create a second dashboard from `sql/analysis/54_ops_widgets.sql` widgets:
 pipeline health, job runs, quality gate, quarantine pressure, spend, audit.
-- [ ] screenshot `evidence/p7_ops_dashboard.png`
+- [x] Operations dashboard created and published (Meridian Trading — Operations Telemetry)
+- [ ] screenshot `evidence/p7_ops_dashboard.png` (pending upload)
 
 ## Step 8 — Phase 8: Genie
 
