@@ -191,6 +191,7 @@ pipeline health, job runs, quality gate, quarantine pressure, spend, audit.
 
 8.1 **UI**: Databricks → Genie → New space over `meridian_t02.gold`; paste the
 instructions + examples from `docs/genie_setup.md`; run the benchmark questions.
+- [x] Genie Space created and benchmarks evaluated (`docs/genie_examples.md`)
 - [ ] screenshot `evidence/p8_genie.png`
 
 ## Step 9 — Phase 9: Power BI
