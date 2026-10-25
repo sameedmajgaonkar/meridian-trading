@@ -14,14 +14,14 @@ RETURN is_member('t02_admins')
 
 CREATE OR REPLACE FUNCTION meridian_t02.gov.mask_customer_phone(phone STRING)
 RETURNS STRING
-COMMENT 'Partial phone mask; unmasked for admins and pii_readers'
-RETURN CASE WHEN is_member('t02_admins') OR is_member('t02_pii_readers') THEN phone
+COMMENT 'Partial phone mask; unmasked for pii_readers only'
+RETURN CASE WHEN is_member('t02_pii_readers') THEN phone
             ELSE concat('XXX-XXX-', right(phone, 4)) END;
 
 CREATE OR REPLACE FUNCTION meridian_t02.gov.mask_account_balance(amount DECIMAL(18, 2))
 RETURNS DECIMAL(18, 2)
-COMMENT 'Typed NULL for balances; unmasked for admins and pii_readers'
-RETURN CASE WHEN is_member('t02_admins') OR is_member('t02_pii_readers') THEN amount
+COMMENT 'Typed NULL for balances; unmasked for pii_readers only'
+RETURN CASE WHEN is_member('t02_pii_readers') THEN amount
             ELSE CAST(NULL AS DECIMAL(18, 2)) END;
 
 -- Dedicated supplier filter: the CREATE MATERIALIZED VIEW ... WITH ROW FILTER
