@@ -1,0 +1,59 @@
+# Phase 5 — one parameterized job: land -> pipeline update -> quality gate.
+# 3 tasks (brief allows <=5 concurrent tasks). Schedule paused until Phase 10.
+# `simulate_batch` is a bundle variable (--var simulate_batch=N at deploy time):
+# the SCD2 flow must see exactly one new snapshot version per update, so run
+# batches progressively (1, then 2, then 3); default 3 = full landing in one
+# go, only valid when the version table/history state allows it.
+# quality_gate gets the same var: it reconciles whatever batches have landed,
+# warns on missing manifests, and keys the pending-lines criticality on the
+# landed state (delayed headers are expected before the final batch).
+resources:
+  jobs:
+    meridian_t02_job:
+      name: meridian_t02_job
+      environments:
+        - environment_key: default
+          spec:
+            client: "6"
+      tasks:
+        - task_key: simulate_batch
+          environment_key: default
+          spark_python_task:
+            python_file: ../src/landing/simulate.py
+            parameters:
+              - "--catalog"
+              - "${var.catalog}"
+              - "--schema-prefix"
+              - "${var.schema_prefix}"
+              - "--batch"
+              - "${var.simulate_batch}"
+              - "--order-start"
+              - "${var.order_start_date}"
+              - "--order-end"
+              - "${var.order_end_date}"
+        - task_key: pipeline_update
+          depends_on:
+            - task_key: simulate_batch
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.meridian_t02_pipeline.id}
+            full_refresh: ${var.pipeline_full_refresh}
+        - task_key: quality_gate
+          depends_on:
+            - task_key: pipeline_update
+          environment_key: default
+          spark_python_task:
+            python_file: ../src/quality_gate/quality_gate.py
+            parameters:
+              - "--catalog"
+              - "${var.catalog}"
+              - "--schema-prefix"
+              - "${var.schema_prefix}"
+              - "--batch"
+              - "${var.simulate_batch}"
+      email_notifications:
+        on_failure:
+          - ${var.alert_email}
+      schedule:
+        quartz_cron_expression: "0 0 6 * * ?"
+        timezone_id: "UTC"
+        pause_status: PAUSED

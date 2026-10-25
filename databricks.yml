@@ -1,0 +1,59 @@
+# Phase 0 configuration only. There are no deployable resources yet.
+# Note: bundle.name is deliberately NOT interpolated (CLI warning: a parameterized
+# state path can duplicate deployments). `nn` stays the source of truth for
+# catalog / schema / group naming instead.
+bundle:
+  name: meridian_t02
+  databricks_cli_version: ">= 1.20.0"
+
+variables:
+  nn:
+    description: Two-digit trainee number; source of truth for project names.
+    default: "02"
+  catalog:
+    description: Override with the existing workspace catalog only after a documented CREATE CATALOG denial.
+    default: meridian_t${var.nn}
+  schema_prefix:
+    description: Empty normally; use tNN_ with the workspace-catalog fallback.
+    default: ""
+  order_start_date:
+    description: Inclusive January 1, to be selected from the Phase 0 profile.
+    default: "1995-01-01"
+  order_end_date:
+    description: Exclusive January 1, one or two years after order_start_date.
+    default: "1996-01-01"
+  alert_email:
+    description: Job failure notification address (not a secret).
+    default: igcoffin17@gmail.com
+  simulate_batch:
+    description: How many landing batches the job's simulate task lands (1..3).
+      The SCD2 flow needs exactly ONE new snapshot version per pipeline update,
+      so drive the three-batch story with --var simulate_batch=1, then 2, then 3.
+    default: "3"
+  pipeline_full_refresh:
+    description: Set true ONLY for the first run after sql/setup/20_reset_pipeline.sql
+      (out-of-band drops desync the pipeline's mat registry; the reset rule
+      requires one full refresh). Keep false otherwise — a full refresh replays
+      every pending snapshot version in one update and breaks the SCD2 story.
+    default: "false"
+
+include:
+  - resources/*.yml
+
+workspace:
+  host: https://dbc-746bc1e1-c295.cloud.databricks.com
+
+targets:
+  dev:
+    default: true
+    mode: development
+  prod:
+    mode: production
+
+sync:
+  exclude:
+    - evidence/**
+    - tests/**
+    - "*.pdf"
+    - "*.png"
+    - CLAUDE_PROMPT_PROJECT_MERIDIAN_TRADING.md

@@ -1,0 +1,13 @@
+.env
+.env.*
+!.env.example
+.databricks/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.log
+# Review exports for credentials/PII before adding selected evidence to Git.
+evidence/runs/
+*.pbix
+
