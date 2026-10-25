@@ -102,7 +102,7 @@ Verified live on 2026-10-25 (see `docs/capability_matrix.md` and `evidence/runs/
 | 3 | Gold model, two-grain metric view | DONE (Star schema MVs + `mv_trading` reconciled live) |
 | 4 | Governance (tags, row filters, masks) | DONE (Governed tags, ABAC policies, row filters, masks active) |
 | 5 | Bundle, Job, quality gate | DONE (Job 747628238433531 green; 42/42 gate checks PASS) |
-| 6 | SQL queries & AI/BI dashboard | QUERIES SAVED LIVE (3 typed queries in SQL Editor); Dashboard layout ready |
+| 6 | SQL queries & AI/BI dashboard | DONE (Published dashboard on metric view with typed parameters; evidence saved) |
 | 7 | Operations dashboard | SYSTEM TABLES VERIFIED LIVE (8/8 queryable via DBSQL); Widgets ready |
 | 8 | Genie Agent | DONE (Space created, instructions & benchmarks configured) |
 | 9 | Power BI | CONNECTION READY (DirectQuery string updated for workspace 2) |

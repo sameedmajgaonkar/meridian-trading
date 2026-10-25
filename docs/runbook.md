@@ -179,7 +179,7 @@ all three.
 widgets: (a) monthly KPI trend (6.1 by month), (b) region revenue mix (6.2),
 (c) order-status split (6.3), (d) top-10 customers per segment from
 `sql/analysis/53_vdp_equivalent.sql`. Publish to the workspace.
-- [ ] screenshot `evidence/p6_dashboard.png`
+- [x] screenshot `evidence/p6_dashboard.png` (Meridian Trading — Wholesale Executive KPIs)
 
 ## Step 7 — Phase 7: operations dashboard
 
