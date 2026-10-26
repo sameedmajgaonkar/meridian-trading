@@ -1,18 +1,18 @@
 resources:
   pipelines:
     meridian_t02_pipeline:
-      name: meridian_t02_pipeline
-      catalog: meridian_t02
+      name: ${var.catalog}_pipeline
+      catalog: ${var.catalog}
       schema: bronze
       serverless: true
+      parameters:
+        catalog: ${var.catalog}
+      configuration:
+        meridian.catalog: ${var.catalog}
+        meridian.landing_path: /Volumes/${var.catalog}/landing/raw_files/trading
       libraries:
-        - file:
-            path: ../src/pipeline/bronze.sql
-        - file:
-            path: ../src/pipeline/silver.sql
-        - file:
-            path: ../src/pipeline/customer_history.sql
-        - file:
-            path: ../src/pipeline/gold.sql
-        - file:
-            path: ../src/pipeline/ops.sql
+        - file: {path: ../src/pipeline/bronze.sql}
+        - file: {path: ../src/pipeline/silver.sql}
+        - file: {path: ../src/pipeline/customer_history.sql}
+        - file: {path: ../src/pipeline/gold.sql}
+        - file: {path: ../src/pipeline/ops.sql}

@@ -1,0 +1,8 @@
+Net Revenue = SUM(Trading[net_revenue])
+Orders = SUM(Trading[order_count])
+Average Order Value = DIVIDE([Net Revenue], [Orders])
+Discount Given = SUM(Trading[discount_given])
+
+Return Rate = DIVIDE(SUM(Trading[returned_lines]), SUM(Trading[line_count]))
+Late Delivery Rate = DIVIDE(SUM(Trading[late_lines]), SUM(Trading[line_count]))
+Delivery Days = DIVIDE(SUM(Trading[transit_days_sum]), SUM(Trading[line_count]))

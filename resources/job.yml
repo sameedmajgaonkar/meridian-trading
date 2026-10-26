@@ -1,66 +1,65 @@
 resources:
   jobs:
     meridian_t02_job:
-      name: meridian_t02_job
+      name: ${var.catalog}_job
       max_concurrent_runs: 1
       parameters:
-        - name: batch
-          default: "next"
+        - {name: batch, default: "next"}
+        - {name: rows_per_batch, default: "2000"}
       environments:
         - environment_key: default
-          spec:
-            client: "6"
+          spec: {client: "6"}
       tasks:
         - task_key: gov_setup
           sql_task:
             warehouse_id: ${var.warehouse}
-            file:
-              path: ../sql/governance/functions.sql
+            parameters: {catalog: "${var.catalog}"}
+            file: {path: ../sql/governance/functions.sql}
         - task_key: simulate_batch
+          depends_on: [{task_key: gov_setup}]
           environment_key: default
           spark_python_task:
             python_file: ../src/landing/simulate.py
-            parameters:
-              - "--catalog"
-              - "meridian_t02"
-              - "--batch"
-              - "{{job.parameters.batch}}"
+            parameters: [--catalog, "${var.catalog}", --warehouse, "${var.warehouse}", --batch, "{{job.parameters.batch}}", --rows-per-batch, "{{job.parameters.rows_per_batch}}"]
         - task_key: pipeline_update
-          depends_on:
-            - task_key: gov_setup
-            - task_key: simulate_batch
+          depends_on: [{task_key: simulate_batch}]
           pipeline_task:
             pipeline_id: ${resources.pipelines.meridian_t02_pipeline.id}
         - task_key: gov_apply
-          depends_on:
-            - task_key: pipeline_update
+          depends_on: [{task_key: pipeline_update}]
           sql_task:
             warehouse_id: ${var.warehouse}
-            file:
-              path: ../sql/governance/apply_policies.sql
+            parameters: {catalog: "${var.catalog}"}
+            file: {path: ../sql/governance/apply_policies.sql}
+        - task_key: ops_setup
+          depends_on: [{task_key: gov_apply}]
+          sql_task:
+            warehouse_id: ${var.warehouse}
+            parameters: {catalog: "${var.catalog}"}
+            file: {path: ../sql/analysis/ops_views.sql}
         - task_key: metric_view
-          depends_on:
-            - task_key: pipeline_update
+          depends_on: [{task_key: ops_setup}]
           sql_task:
             warehouse_id: ${var.warehouse}
-            file:
-              path: ../sql/metric_views/trading_metrics.sql
+            parameters: {catalog: "${var.catalog}"}
+            file: {path: ../sql/metric_views/trading_metrics.sql}
+        - task_key: visual_data_prep
+          depends_on: [{task_key: metric_view}]
+          notebook_task:
+            notebook_path: ../lakeflow_designer/top_customers.py
+            base_parameters: {catalog: "${var.catalog}", segment: ALL}
         - task_key: quality_gate
-          depends_on:
-            - task_key: gov_apply
-            - task_key: metric_view
+          # A deterministic invariant failure requires repair, not compute retries.
+          disable_auto_optimization: true
+          max_retries: 0
+          depends_on: [{task_key: visual_data_prep}]
           environment_key: default
           spark_python_task:
             python_file: ../src/quality_gate/quality_gate.py
-            parameters:
-              - "--catalog"
-              - "meridian_t02"
-              - "--batch"
-              - "{{job.parameters.batch}}"
+            parameters: [--catalog, "${var.catalog}", --run-id, "{{job.run_id}}"]
       email_notifications:
-        on_failure:
-          - ${var.alert_email}
+        on_failure: ["${var.alert_email}"]
       schedule:
         quartz_cron_expression: "0 0 6 * * ?"
-        timezone_id: "UTC"
+        timezone_id: Asia/Kolkata
         pause_status: PAUSED

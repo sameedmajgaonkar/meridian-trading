@@ -1,0 +1,224 @@
+{
+  "version": 2,
+  "config": {
+    "sample_questions": [
+      {
+        "id": "00000000000000000000000000000001",
+        "question": [
+          "Show monthly net revenue and order value by historical customer segment."
+        ]
+      },
+      {
+        "id": "00000000000000000000000000000002",
+        "question": [
+          "Compare regional delivery days, late rate and return rate."
+        ]
+      },
+      {
+        "id": "00000000000000000000000000000003",
+        "question": [
+          "Show the customer segment used for each order and its validity interval."
+        ]
+      }
+    ]
+  },
+  "data_sources": {
+    "tables": [
+      {
+        "identifier": "meridian_t02_dev.gold.dim_customer_history",
+        "column_configs": [
+          {
+            "column_name": "market_segment",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "nation_name",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "region_name",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      },
+      {
+        "identifier": "meridian_t02_dev.gold.fct_order_headers",
+        "column_configs": [
+          {
+            "column_name": "_batch_id",
+            "exclude": true
+          },
+          {
+            "column_name": "_source_file",
+            "exclude": true
+          },
+          {
+            "column_name": "market_segment_at_order_time",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "nation_name",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "order_key_hash",
+            "exclude": true
+          },
+          {
+            "column_name": "region_name",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      },
+      {
+        "identifier": "meridian_t02_dev.gold.mv_trading",
+        "column_configs": [
+          {
+            "column_name": "market_segment_at_order_time",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "nation_name",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          },
+          {
+            "column_name": "region_name",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      },
+      {
+        "identifier": "meridian_t02_dev.gold.vdp_top_customers",
+        "column_configs": [
+          {
+            "column_name": "market_segment_at_order_time",
+            "enable_format_assistance": true,
+            "enable_entity_matching": true
+          }
+        ]
+      }
+    ]
+  },
+  "instructions": {
+    "text_instructions": [
+      {
+        "id": "00000000000000000000000000000064",
+        "content": [
+          "## PURPOSE\nAnswer wholesale revenue and fulfillment questions for the landed 1995 demonstration cohort.\nUse mv_trading for the seven KPIs. Monetary amounts are sample units, excluding tax.\n## TIME AND AMBIGUITY\nDefault order-date range is 1995-01-01 through 1995-12-31.\nWhen a question uses best, performance, or success without naming a KPI, ask the user to choose net revenue, average order value, or fulfillment. Do not run SQL or choose a metric until they answer. Distinguish current customer segment from order-time segment.\n## SCOPE\nExplain missing data or permission errors; do not suggest bypassing restrictions.\n## PRESENTATION\nState date range and filters. Show rates as percentages, NULL as unavailable, and useful charts with compact tables."
+        ]
+      }
+    ],
+    "example_question_sqls": [
+      {
+        "id": "000000000000000000000000000000c8",
+        "question": [
+          "Show monthly net revenue and order value by historical customer segment."
+        ],
+        "sql": [
+          "SELECT order_month,market_segment_at_order_time,\nMEASURE(net_revenue) AS net_revenue,MEASURE(order_count) AS order_count,\nMEASURE(average_order_value) AS average_order_value FROM meridian_t02_dev.gold.mv_trading\nWHERE order_date>=DATE '1995-01-01' AND order_date<DATE '1996-01-01'\nGROUP BY order_month,market_segment_at_order_time ORDER BY order_month,market_segment_at_order_time"
+        ]
+      },
+      {
+        "id": "000000000000000000000000000000c9",
+        "question": [
+          "Compare regional delivery days, late rate and return rate."
+        ],
+        "sql": [
+          "SELECT region_name,MEASURE(delivery_days) AS delivery_days,\nMEASURE(late_delivery_rate) AS late_delivery_rate,MEASURE(return_rate) AS return_rate\nFROM meridian_t02_dev.gold.mv_trading GROUP BY region_name ORDER BY late_delivery_rate DESC,region_name"
+        ]
+      },
+      {
+        "id": "000000000000000000000000000000ca",
+        "question": [
+          "Show the customer segment used for each order and its validity interval."
+        ],
+        "sql": [
+          "SELECT o.order_key,o.order_date,o.customer_key,h.market_segment,h.valid_from,h.valid_to\nFROM meridian_t02_dev.gold.fct_order_headers o JOIN meridian_t02_dev.gold.dim_customer_history h\nON o.customer_version_key=h.customer_version_key ORDER BY o.customer_key,o.order_date LIMIT 30"
+        ]
+      }
+    ]
+  },
+  "benchmarks": {
+    "questions": [
+      {
+        "id": "0000000000000000000000000000012c",
+        "question": [
+          "What is total net revenue for the full 1995 cohort?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT sum(net_revenue) AS net_revenue FROM meridian_t02_dev.gold.fct_order_items WHERE order_date>=DATE '1995-01-01' AND order_date<DATE '1996-01-01'"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "0000000000000000000000000000012d",
+        "question": [
+          "How many validated orders were placed in December 1995?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT count(*) AS order_count FROM meridian_t02_dev.gold.fct_order_headers WHERE order_date>=DATE '1995-12-01' AND order_date<DATE '1996-01-01'"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "0000000000000000000000000000012e",
+        "question": [
+          "Rank customer regions by late-delivery rate, highest first; break ties by region name."
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT region_name,try_divide(sum(is_late),count(*)) AS late_delivery_rate FROM meridian_t02_dev.gold.fct_order_items GROUP BY region_name ORDER BY late_delivery_rate DESC,region_name"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "0000000000000000000000000000012f",
+        "question": [
+          "What fraction of all valid 1995 order items were returned?"
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "SELECT try_divide(sum(is_returned),count(*)) AS return_rate FROM meridian_t02_dev.gold.fct_order_items WHERE order_date>=DATE '1995-01-01' AND order_date<DATE '1996-01-01'"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "00000000000000000000000000000130",
+        "question": [
+          "Show the top ten customers in each order-time market segment, ranked by net revenue; break ties by customer key."
+        ],
+        "answer": [
+          {
+            "format": "SQL",
+            "content": [
+              "WITH totals AS (SELECT customer_key,market_segment_at_order_time,sum(net_revenue) AS net_revenue,\ncount(DISTINCT order_key) AS order_count FROM meridian_t02_dev.gold.fct_order_items GROUP BY customer_key,market_segment_at_order_time),\nranked AS (SELECT *,row_number() OVER (PARTITION BY market_segment_at_order_time ORDER BY net_revenue DESC,customer_key) AS rank_in_segment FROM totals)\nSELECT customer_key,market_segment_at_order_time,net_revenue,order_count,rank_in_segment FROM ranked\nWHERE rank_in_segment<=10 ORDER BY market_segment_at_order_time,rank_in_segment"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -9,5 +9,8 @@ __pycache__/
 *.log
 # Review exports for credentials/PII before adding selected evidence to Git.
 evidence/runs/
+evidence/live/
+evidence/study_guide/
 *.pbix
+bak/
 

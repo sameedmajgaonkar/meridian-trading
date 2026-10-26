@@ -2,35 +2,45 @@ bundle:
   name: meridian_t02
   databricks_cli_version: ">= 1.20.0"
 
-variables:
-  catalog:
-    description: Target Unity Catalog for the lakehouse.
-    default: meridian_t02
-  warehouse:
-    description: SQL Warehouse ID for SQL tasks.
-    default: 7c433c4d75a98ff6
-  alert_email:
-    description: Job failure notification recipient.
-    default: ${workspace.current_user.userName}
-  batch:
-    description: Landing batch to generate (1..3 or 'next').
-    default: "next"
-
 include:
   - resources/*.yml
+
+variables:
+  catalog:
+    default: meridian_t02_dev
+  warehouse:
+    default: 7c433c4d75a98ff6
+  trainee:
+    default: "02"
+  alert_email:
+    default: ${workspace.current_user.userName}
+
+workspace:
+  root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/revised/${bundle.target}
 
 targets:
   dev:
     default: true
-    mode: development
+    mode: production
+    workspace:
+      # new deployment folder; the old one still owns the legacy catalog
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/revised/${bundle.target}
+    variables:
+      catalog: meridian_t02_dev
   prod:
     mode: production
     workspace:
-      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
+      # new deployment folder; the old one still owns the legacy catalog
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/revised/${bundle.target}
+    variables:
+      catalog: meridian_t02_prod
 
 sync:
   exclude:
+    - bak/**
+    - lakeflow_designer/*.draft.designer.ipynb
     - evidence/**
     - tests/**
+    - docs/**
     - "*.pdf"
     - "*.png"

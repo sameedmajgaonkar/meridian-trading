@@ -1,0 +1,23 @@
+resources:
+  alerts:
+    latest_run_failed:
+      display_name: ${var.catalog} latest run failed
+      warehouse_id: ${var.warehouse}
+      query_text: |
+        SELECT IF(result_state IN ('FAILED','ERROR','TIMED_OUT'),1,0) AS latest_run_failed,run_id,result_state,started_at
+        FROM ${var.catalog}.ops.job_runs
+        WHERE job_id='${resources.jobs.meridian_t02_job.id}' AND result_state IS NOT NULL
+        ORDER BY started_at DESC LIMIT 1
+      evaluation:
+        comparison_operator: EQUAL
+        source: {name: latest_run_failed}
+        threshold:
+          value: {double_value: 1}
+        empty_result_state: OK
+        notification:
+          notify_on_ok: true
+          subscriptions: [{user_email: "${var.alert_email}"}]
+      schedule:
+        quartz_cron_schedule: "0 0/30 * * * ?"
+        timezone_id: Asia/Kolkata
+        pause_status: PAUSED

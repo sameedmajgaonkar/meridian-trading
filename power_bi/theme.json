@@ -1,0 +1,13 @@
+{
+  "name": "Meridian Trading",
+  "dataColors": [
+    "#007F86",
+    "#3568A8",
+    "#B98216",
+    "#8961A6",
+    "#D66A46"
+  ],
+  "background": "#F3F6F7",
+  "foreground": "#183042",
+  "tableAccent": "#007F86"
+}

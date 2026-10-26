@@ -1,0 +1,1049 @@
+{
+  "datasets": [
+    {
+      "name": "job_runs",
+      "displayName": "Job Runs",
+      "queryLines": [
+        "SELECT * FROM job_runs ORDER BY started_at DESC"
+      ]
+    },
+    {
+      "name": "latest_run",
+      "displayName": "Latest Run",
+      "queryLines": [
+        "SELECT run_id,environment,started_at,result_state,duration_seconds FROM job_runs ORDER BY started_at DESC LIMIT 1"
+      ]
+    },
+    {
+      "name": "task_runs",
+      "displayName": "Task Runs",
+      "queryLines": [
+        "SELECT task_key,avg(duration_seconds) AS average_seconds,sum(duration_seconds) AS total_seconds FROM task_runs GROUP BY task_key ORDER BY total_seconds DESC"
+      ]
+    },
+    {
+      "name": "pipeline_updates",
+      "displayName": "Pipeline Updates",
+      "queryLines": [
+        "SELECT * FROM pipeline_updates ORDER BY started_at DESC"
+      ]
+    },
+    {
+      "name": "expectations",
+      "displayName": "Expectations",
+      "queryLines": [
+        "SELECT * FROM expectations ORDER BY recorded_at DESC"
+      ]
+    },
+    {
+      "name": "quality_gate",
+      "displayName": "Quality Gate",
+      "queryLines": [
+        "SELECT checked_on,batch,check_name,status,value,detail,run_id FROM quality_gate ORDER BY checked_on DESC,check_name"
+      ]
+    },
+    {
+      "name": "quarantine",
+      "displayName": "Quarantine",
+      "queryLines": [
+        "SELECT _batch_id,entity,stage,count(*) AS rejected_records FROM quarantine_records GROUP BY _batch_id,entity,stage ORDER BY _batch_id,entity,stage"
+      ]
+    },
+    {
+      "name": "compute_usage",
+      "displayName": "Compute Usage",
+      "queryLines": [
+        "SELECT * FROM compute_usage WHERE usage_unit='DBU' ORDER BY usage_date"
+      ]
+    },
+    {
+      "name": "query_performance",
+      "displayName": "Query Performance",
+      "queryLines": [
+        "SELECT statement_id,start_time,execution_status,total_duration_ms,read_rows,produced_rows FROM query_performance ORDER BY total_duration_ms DESC LIMIT 20"
+      ]
+    },
+    {
+      "name": "gold_lineage",
+      "displayName": "Gold Lineage",
+      "queryLines": [
+        "SELECT * FROM gold_lineage ORDER BY event_date DESC"
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "health",
+      "displayName": "Run health",
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1",
+      "layout": [
+        {
+          "widget": {
+            "name": "ops_title",
+            "multilineTextboxSpec": {
+              "lines": [
+                "# Meridian Trading | Run health"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "ops_scope",
+            "multilineTextboxSpec": {
+              "lines": [
+                "Project jobs \u00b7 last 30 days \u00b7 system telemetry may arrive after the job API \u00b7 failed runs remain visible after repair"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 1,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "latest",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "latest_run",
+                  "fields": [
+                    {
+                      "name": "run_id",
+                      "expression": "`run_id`"
+                    },
+                    {
+                      "name": "environment",
+                      "expression": "`environment`"
+                    },
+                    {
+                      "name": "started_at",
+                      "expression": "`started_at`"
+                    },
+                    {
+                      "name": "result_state",
+                      "expression": "`result_state`"
+                    },
+                    {
+                      "name": "duration_seconds",
+                      "expression": "`duration_seconds`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "run_id",
+                    "displayName": "Run Id"
+                  },
+                  {
+                    "fieldName": "environment",
+                    "displayName": "Environment"
+                  },
+                  {
+                    "fieldName": "started_at",
+                    "displayName": "Started At"
+                  },
+                  {
+                    "fieldName": "result_state",
+                    "displayName": "Result State"
+                  },
+                  {
+                    "fieldName": "duration_seconds",
+                    "displayName": "Duration Seconds"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Latest project run"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 12,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "run_durations",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "job_runs",
+                  "fields": [
+                    {
+                      "name": "started_at",
+                      "expression": "`started_at`"
+                    },
+                    {
+                      "name": "seconds",
+                      "expression": "SUM(`duration_seconds`)"
+                    },
+                    {
+                      "name": "result_state",
+                      "expression": "`result_state`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "started_at",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "fieldName": "seconds",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "format": {
+                    "type": "number-plain",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 0
+                    }
+                  }
+                },
+                "color": {
+                  "fieldName": "result_state",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Run duration by start time \u00b7 seconds"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 5,
+            "width": 6,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "slow_tasks",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "task_runs",
+                  "fields": [
+                    {
+                      "name": "task_key",
+                      "expression": "`task_key`"
+                    },
+                    {
+                      "name": "average_seconds",
+                      "expression": "`average_seconds`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "average_seconds",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "format": {
+                    "type": "number-plain",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 0
+                    }
+                  }
+                },
+                "y": {
+                  "fieldName": "task_key",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "value"
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Average duration by task \u00b7 seconds"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 5,
+            "width": 6,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "expectation_failures",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "expectations",
+                  "fields": [
+                    {
+                      "name": "dataset",
+                      "expression": "`dataset`"
+                    },
+                    {
+                      "name": "failures",
+                      "expression": "SUM(`failed_records`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "failures",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "format": {
+                    "type": "number-plain",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 0
+                    }
+                  }
+                },
+                "y": {
+                  "fieldName": "dataset",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "value"
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Expectation failures by dataset"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 10,
+            "width": 6,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "rejections",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "quarantine",
+                  "fields": [
+                    {
+                      "name": "_batch_id",
+                      "expression": "`_batch_id`"
+                    },
+                    {
+                      "name": "rejected_records",
+                      "expression": "SUM(`rejected_records`)"
+                    },
+                    {
+                      "name": "entity",
+                      "expression": "`entity`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "rejected_records",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "format": {
+                    "type": "number-plain",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 0
+                    }
+                  }
+                },
+                "y": {
+                  "fieldName": "_batch_id",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "value"
+                    }
+                  }
+                },
+                "color": {
+                  "fieldName": "entity",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Quarantine records by entity and batch"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 10,
+            "width": 6,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "pipeline_history",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "pipeline_updates",
+                  "fields": [
+                    {
+                      "name": "update_id",
+                      "expression": "`update_id`"
+                    },
+                    {
+                      "name": "started_at",
+                      "expression": "`started_at`"
+                    },
+                    {
+                      "name": "result_state",
+                      "expression": "`result_state`"
+                    },
+                    {
+                      "name": "duration_seconds",
+                      "expression": "`duration_seconds`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "update_id",
+                    "displayName": "Update Id"
+                  },
+                  {
+                    "fieldName": "started_at",
+                    "displayName": "Started At"
+                  },
+                  {
+                    "fieldName": "result_state",
+                    "displayName": "Result State"
+                  },
+                  {
+                    "fieldName": "duration_seconds",
+                    "displayName": "Duration Seconds"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Pipeline update history"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 15,
+            "width": 12,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "checks",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "quality_gate",
+                  "fields": [
+                    {
+                      "name": "checked_on",
+                      "expression": "`checked_on`"
+                    },
+                    {
+                      "name": "batch",
+                      "expression": "`batch`"
+                    },
+                    {
+                      "name": "run_id",
+                      "expression": "`run_id`"
+                    },
+                    {
+                      "name": "check_name",
+                      "expression": "`check_name`"
+                    },
+                    {
+                      "name": "status",
+                      "expression": "`status`"
+                    },
+                    {
+                      "name": "value",
+                      "expression": "`value`"
+                    },
+                    {
+                      "name": "detail",
+                      "expression": "`detail`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "checked_on",
+                    "displayName": "Checked On"
+                  },
+                  {
+                    "fieldName": "batch",
+                    "displayName": "Batch"
+                  },
+                  {
+                    "fieldName": "run_id",
+                    "displayName": "Run Id"
+                  },
+                  {
+                    "fieldName": "check_name",
+                    "displayName": "Check Name"
+                  },
+                  {
+                    "fieldName": "status",
+                    "displayName": "Status"
+                  },
+                  {
+                    "fieldName": "value",
+                    "displayName": "Value"
+                  },
+                  {
+                    "fieldName": "detail",
+                    "displayName": "Detail"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Quality gate | inspect status and diagnostic"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 20,
+            "width": 12,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "expectation_detail",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "expectations",
+                  "fields": [
+                    {
+                      "name": "update_id",
+                      "expression": "`update_id`"
+                    },
+                    {
+                      "name": "dataset",
+                      "expression": "`dataset`"
+                    },
+                    {
+                      "name": "expectation",
+                      "expression": "`expectation`"
+                    },
+                    {
+                      "name": "passed_records",
+                      "expression": "`passed_records`"
+                    },
+                    {
+                      "name": "failed_records",
+                      "expression": "`failed_records`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "update_id",
+                    "displayName": "Update Id"
+                  },
+                  {
+                    "fieldName": "dataset",
+                    "displayName": "Dataset"
+                  },
+                  {
+                    "fieldName": "expectation",
+                    "displayName": "Expectation"
+                  },
+                  {
+                    "fieldName": "passed_records",
+                    "displayName": "Passed Records"
+                  },
+                  {
+                    "fieldName": "failed_records",
+                    "displayName": "Failed Records"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Expectation pass and fail counts | per update"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 25,
+            "width": 12,
+            "height": 5
+          }
+        }
+      ]
+    },
+    {
+      "name": "usage",
+      "displayName": "Cost and usage",
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1",
+      "layout": [
+        {
+          "widget": {
+            "name": "usage_title",
+            "multilineTextboxSpec": {
+              "lines": [
+                "# Meridian Trading | Cost and usage"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "usage_scope",
+            "multilineTextboxSpec": {
+              "lines": [
+                "Workspace-wide DBU usage, not a currency bill \u00b7 project task duration \u00b7 selected warehouse query performance \u00b7 governed Gold lineage"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 1,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "usage_trend",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "compute_usage",
+                  "fields": [
+                    {
+                      "name": "usage_date",
+                      "expression": "`usage_date`"
+                    },
+                    {
+                      "name": "dbu",
+                      "expression": "SUM(`usage_quantity`)"
+                    },
+                    {
+                      "name": "sku_name",
+                      "expression": "`sku_name`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "usage_date",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "fieldName": "dbu",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "format": {
+                    "type": "number-plain",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 2
+                    }
+                  }
+                },
+                "color": {
+                  "fieldName": "sku_name",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Daily workspace DBU usage by SKU"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 3,
+            "width": 6,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "task_compute",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "task_runs",
+                  "fields": [
+                    {
+                      "name": "task_key",
+                      "expression": "`task_key`"
+                    },
+                    {
+                      "name": "total_seconds",
+                      "expression": "`total_seconds`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "total_seconds",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "format": {
+                    "type": "number-plain",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 0
+                    }
+                  }
+                },
+                "y": {
+                  "fieldName": "task_key",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "value"
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Project task elapsed time \u00b7 seconds"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 3,
+            "width": 6,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "slow_queries",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "query_performance",
+                  "fields": [
+                    {
+                      "name": "start_time",
+                      "expression": "`start_time`"
+                    },
+                    {
+                      "name": "statement_id",
+                      "expression": "`statement_id`"
+                    },
+                    {
+                      "name": "execution_status",
+                      "expression": "`execution_status`"
+                    },
+                    {
+                      "name": "total_duration_ms",
+                      "expression": "`total_duration_ms`"
+                    },
+                    {
+                      "name": "read_rows",
+                      "expression": "`read_rows`"
+                    },
+                    {
+                      "name": "produced_rows",
+                      "expression": "`produced_rows`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "start_time",
+                    "displayName": "Start Time"
+                  },
+                  {
+                    "fieldName": "statement_id",
+                    "displayName": "Statement Id"
+                  },
+                  {
+                    "fieldName": "execution_status",
+                    "displayName": "Execution Status"
+                  },
+                  {
+                    "fieldName": "total_duration_ms",
+                    "displayName": "Total Duration Ms"
+                  },
+                  {
+                    "fieldName": "read_rows",
+                    "displayName": "Read Rows"
+                  },
+                  {
+                    "fieldName": "produced_rows",
+                    "displayName": "Produced Rows"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Slowest warehouse queries | duration in ms"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 8,
+            "width": 12,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "lineage",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "gold_lineage",
+                  "fields": [
+                    {
+                      "name": "source_table_full_name",
+                      "expression": "`source_table_full_name`"
+                    },
+                    {
+                      "name": "target_table_full_name",
+                      "expression": "`target_table_full_name`"
+                    },
+                    {
+                      "name": "entity_type",
+                      "expression": "`entity_type`"
+                    },
+                    {
+                      "name": "event_date",
+                      "expression": "`event_date`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "source_table_full_name",
+                    "displayName": "Source Table Full Name"
+                  },
+                  {
+                    "fieldName": "target_table_full_name",
+                    "displayName": "Target Table Full Name"
+                  },
+                  {
+                    "fieldName": "entity_type",
+                    "displayName": "Entity Type"
+                  },
+                  {
+                    "fieldName": "event_date",
+                    "displayName": "Event Date"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Where Gold comes from | recorded lineage"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 13,
+            "width": 12,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "usage_note",
+            "multilineTextboxSpec": {
+              "lines": [
+                "Usage measures consumption in DBU; it is not a monetary charge. Task elapsed time is a performance signal, not billing attribution. Empty lineage can mean telemetry lag. No system rows have been invented."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 18,
+            "width": 12,
+            "height": 2
+          }
+        }
+      ]
+    }
+  ],
+  "uiSettings": {
+    "theme": {
+      "canvasBackgroundColor": {
+        "light": "#F3F6F7",
+        "dark": "#17212B"
+      },
+      "widgetBackgroundColor": {
+        "light": "#FFFFFF",
+        "dark": "#202E3A"
+      },
+      "fontColor": {
+        "light": "#183042",
+        "dark": "#EAF2F5"
+      },
+      "selectionColor": {
+        "light": "#007F86",
+        "dark": "#67CDD0"
+      },
+      "visualizationColors": [
+        "#007F86",
+        "#3568A8",
+        "#B98216",
+        "#8961A6",
+        "#D66A46"
+      ],
+      "widgetHeaderAlignment": "LEFT"
+    }
+  }
+}

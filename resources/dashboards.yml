@@ -1,0 +1,20 @@
+targets:
+  prod:
+    resources:
+      dashboards:
+        meridian_business:
+          parent_path: /Users/${workspace.current_user.userName}
+          display_name: Meridian Trading - Revenue and fulfillment
+          warehouse_id: ${var.warehouse}
+          dataset_catalog: ${var.catalog}
+          dataset_schema: gold
+          file_path: ../src/dashboards/business.lvdash.json
+          embed_credentials: false
+        meridian_operations:
+          parent_path: /Users/${workspace.current_user.userName}
+          display_name: Meridian Trading - Operations
+          warehouse_id: ${var.warehouse}
+          dataset_catalog: ${var.catalog}
+          dataset_schema: ops
+          file_path: ../src/dashboards/operations.lvdash.json
+          embed_credentials: false

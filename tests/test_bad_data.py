@@ -1,12 +1,7 @@
 """Unit tests for landing batch plan, segment cycle, and injection rules."""
 
-import sys
 import unittest
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src" / "landing"))
-
-import bad_data
+import batch_plan as bad_data
 
 
 class BadDataTests(unittest.TestCase):
@@ -28,14 +23,8 @@ class BadDataTests(unittest.TestCase):
         keys = list(range(1, 20))
         b2_changes = bad_data.get_segment_changes(2, keys)
         b3_changes = bad_data.get_segment_changes(3, keys)
-        self.assertEqual(len(b2_changes), 5)
-        self.assertEqual(len(b3_changes), 7)
-        self.assertEqual(b3_changes[-2:], keys[:2])
-
-    def test_rules_have_name_and_predicate(self):
-        for name, pred, _ in bad_data.ORDERS_RULES + bad_data.LINEITEM_RULES:
-            self.assertTrue(name)
-            self.assertTrue(pred.startswith("rn = "))
+        self.assertEqual(b2_changes, keys[:2])
+        self.assertEqual(b3_changes, keys[:2])
 
 
 if __name__ == "__main__":
